@@ -157,9 +157,12 @@ def render_main_alerts(df):
     
     if not alerts:
         st.markdown("""
-        <div class="alert-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-left: 5px solid #4CAF50;">
-            <h4>✅ Métricas Saudáveis</h4>
-            <p>Nenhum ponto crítico de atenção identificado no momento.</p>
+        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #00d4aa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="color: #00d4aa; margin-top: 0;">✅ Métricas Saudáveis</h4>
+            <p style="color: #e0e0e0; margin-bottom: 10px;">Nenhum ponto crítico de atenção identificado no momento.</p>
+            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0;">
+                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
+            </p>
         </div>
         """, unsafe_allow_html=True)
         return
@@ -171,43 +174,52 @@ def render_main_alerts(df):
     
     # Renderiza alertas de alta severidade
     if high_alerts:
-        alerts_html = "<ul>"
+        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
         for alert in high_alerts:
             alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
         
         st.markdown(f"""
-        <div class="alert-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-left: 5px solid #f44336;">
-            <h4>🚨 Pontos Críticos de Atenção</h4>
+        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #ff4757; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="color: #ff4757; margin-top: 0;">🚨 Pontos Críticos de Atenção</h4>
             {alerts_html}
+            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
+                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
+            </p>
         </div>
         """, unsafe_allow_html=True)
     
     # Renderiza alertas de média severidade
     if medium_alerts:
-        alerts_html = "<ul>"
+        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
         for alert in medium_alerts:
             alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
         
         st.markdown(f"""
-        <div class="alert-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-left: 5px solid #ff9800;">
-            <h4>⚠️ Pontos de Monitoramento</h4>
+        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #ffa502; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="color: #ffa502; margin-top: 0;">⚠️ Pontos de Monitoramento</h4>
             {alerts_html}
+            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
+                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
+            </p>
         </div>
         """, unsafe_allow_html=True)
     
     # Renderiza alertas de baixa severidade (se houver)
     if low_alerts:
-        alerts_html = "<ul>"
+        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
         for alert in low_alerts:
             alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
         
         st.markdown(f"""
-        <div class="alert-box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-left: 5px solid #2196F3;">
-            <h4>ℹ️ Observações</h4>
+        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #5352ed; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+            <h4 style="color: #5352ed; margin-top: 0;">ℹ️ Observações</h4>
             {alerts_html}
+            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
+                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
+            </p>
         </div>
         """, unsafe_allow_html=True)
 
