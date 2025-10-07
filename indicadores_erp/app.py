@@ -9,7 +9,7 @@ from config.styles import get_custom_css
 from data.loader import load_data, filter_data
 from components.header import render_header, render_sidebar
 from components.metrics import render_main_metrics
-from components.alerts import render_main_alerts
+from components.alerts import render_main_alerts, render_insights
 
 # Imports das tabs
 from tabs.tab_evolucao import render_tab_evolucao
@@ -41,8 +41,11 @@ df_filtered = filter_data(df, selected_months)
 # Métricas principais
 render_main_metrics(df_filtered)
 
-# Alertas
-render_main_alerts()
+# Alertas dinâmicos (agora recebe o DataFrame)
+render_main_alerts(df_filtered)
+
+# Insights positivos (opcional - descomente se quiser exibir)
+# render_insights(df_filtered)
 
 # Tabs
 tabs = st.tabs([
