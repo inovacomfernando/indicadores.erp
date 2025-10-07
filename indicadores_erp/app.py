@@ -9,7 +9,7 @@ from config.styles import get_custom_css
 from data.loader import load_data, filter_data
 from components.header import render_header, render_sidebar
 from components.metrics import render_main_metrics
-from components.alerts import render_main_alerts, render_insights
+from components.alerts import render_main_alerts
 
 # Imports das tabs
 from tabs.tab_evolucao import render_tab_evolucao
