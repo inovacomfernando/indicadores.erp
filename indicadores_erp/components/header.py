@@ -7,7 +7,7 @@ def render_header():
     """Renderiza o header principal"""
     st.markdown('<div class="main-header">📊 Dashboard de Marketing - SaaS ERP</div>', 
                 unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Análise de Performance: Maio - Setembro 2025</div>', 
+    st.markdown('<div class="sub-header">Análise de Performance: Maio - Dezembro 2025</div>', 
                 unsafe_allow_html=True)
 
 def render_sidebar(df):
@@ -34,4 +34,5 @@ def render_sidebar(df):
         st.markdown("---")
         st.caption("Desenvolvido para análise estratégica de marketing")
         
+
         return selected_months
