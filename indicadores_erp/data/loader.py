@@ -13,7 +13,7 @@ def load_data():
         'Primeira Visita': [2900, 3562, 3500, 5400, 5548, 1285, 0, 0],
         'Leads': [270, 290, 401, 600, 604, 116, 0, 0],
         'TC Usuários (%)': [9.32, 8.79, 11.46, 11.11, 10.89, 9.03, 0, 0],
-        'Clientes Web': [16, 15, 18, 20, 24, 5, 0, 0],
+        'Clientes Web': [16, 15, 18, 20, 24, 3, 0, 0],
         'TC Leads (%)': [5.93, 5.50, 4.50, 3.33, 3.97, 2.59, 0, 0],
         'Receita Web': [2114.56, 1991.31, 2591.91, 2728.92, 3393.42, 424.20, 0, 0],
         'Ticket Médio': [132.16, 132.75, 149.99, 136.45, 141.40, 141.40, 0, 0],
@@ -31,5 +31,6 @@ def filter_data(df, selected_months):
     """Filtra dados pelos meses selecionados"""
 
     return df[df['Mês'].isin(selected_months)]
+
 
 
