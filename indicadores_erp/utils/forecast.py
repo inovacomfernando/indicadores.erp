@@ -2,6 +2,7 @@
 Funções para previsão e análise estatística
 """
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import LinearRegression
 from scipy import stats
 import sklearn.metrics as metrics
@@ -12,18 +13,25 @@ def prever_cenarios(df, coluna, num_previsoes=3):
     Realiza previsão com intervalos de confiança
     
     Args:
-        df: DataFrame com os dados históricos
+        df: DataFrame com os dados históricos (apenas dados apurados)
         coluna: Nome da coluna a prever
         num_previsoes: Número de períodos para prever
     
     Returns:
-        Dict com previsões e métricas
+        Dict com previsões e métricas (como pandas Series)
     """
     try:
+        # Filtra apenas valores válidos (não zeros e não nulos)
+        df_valido = df[df[coluna] > 0].copy()
+        
+        if len(df_valido) < 3:
+            print(f"Dados insuficientes para previsão de {coluna}")
+            return None
+        
         # Preparar dados
-        n = len(df)
+        n = len(df_valido)
         X = np.arange(n).reshape(-1, 1)
-        y = df[coluna].values
+        y = df_valido[coluna].values
         
         # Treinar modelo
         modelo = LinearRegression()
@@ -48,18 +56,22 @@ def prever_cenarios(df, coluna, num_previsoes=3):
         otimista = previsao_base + margem_erro
         conservador = previsao_base - margem_erro
         
+        # Garantir valores não negativos
+        conservador = np.maximum(conservador, 0)
+        
         # Métricas de qualidade
         metricas_calc = calcular_metricas_qualidade(y, y_pred)
         
-        # Teste de tendência
+        # Teste de tendência (Mann-Kendall)
         tau, p_valor = stats.kendalltau(range(len(y)), y)
         metricas_calc['Tendência (tau)'] = tau
         metricas_calc['P-valor tendência'] = p_valor
         
+        # Retorna como pandas Series para facilitar manipulação
         return {
-            'previsao': previsao_base,
-            'otimista': otimista,
-            'conservador': conservador,
+            'previsao': pd.Series(previsao_base),
+            'otimista': pd.Series(otimista),
+            'conservador': pd.Series(conservador),
             'metricas': metricas_calc,
             'modelo': modelo,
             'erro_padrao': erro_padrao
@@ -81,24 +93,38 @@ def calcular_metricas_qualidade(y_real, y_pred):
     Returns:
         Dict com métricas
     """
-    # R² (coeficiente de determinação)
-    r2 = metrics.r2_score(y_real, y_pred)
-    
-    # RMSE (Root Mean Squared Error)
-    rmse = np.sqrt(metrics.mean_squared_error(y_real, y_pred))
-    
-    # MAPE (Mean Absolute Percentage Error)
-    mape = np.mean(np.abs((y_real - y_pred) / y_real)) * 100
-    
-    # MAE (Mean Absolute Error)
-    mae = metrics.mean_absolute_error(y_real, y_pred)
-    
-    return {
-        'R²': r2,
-        'RMSE': rmse,
-        'MAPE': mape,
-        'MAE': mae
-    }
+    try:
+        # R² (coeficiente de determinação)
+        r2 = metrics.r2_score(y_real, y_pred)
+        
+        # RMSE (Root Mean Squared Error)
+        rmse = np.sqrt(metrics.mean_squared_error(y_real, y_pred))
+        
+        # MAPE (Mean Absolute Percentage Error)
+        # Evita divisão por zero
+        mask = y_real != 0
+        if np.sum(mask) > 0:
+            mape = np.mean(np.abs((y_real[mask] - y_pred[mask]) / y_real[mask])) * 100
+        else:
+            mape = 0
+        
+        # MAE (Mean Absolute Error)
+        mae = metrics.mean_absolute_error(y_real, y_pred)
+        
+        return {
+            'R²': r2,
+            'RMSE': rmse,
+            'MAPE': mape,
+            'MAE': mae
+        }
+    except Exception as e:
+        print(f"Erro ao calcular métricas: {str(e)}")
+        return {
+            'R²': 0,
+            'RMSE': 0,
+            'MAPE': 0,
+            'MAE': 0
+        }
 
 
 def avaliar_qualidade_previsao(r2, mape):
@@ -110,7 +136,7 @@ def avaliar_qualidade_previsao(r2, mape):
         mape: Mean Absolute Percentage Error
     
     Returns:
-        Tuple (status_r2, status_mape, status_geral)
+        Dict com avaliações
     """
     # Avaliação R²
     if r2 > 0.8:
@@ -165,15 +191,15 @@ def interpretar_tendencia(tau, p_valor, threshold=0.05):
     
     if significante:
         if tau > 0:
-            direcao = "crescente"
+            direcao = "Crescente"
             emoji = "📈"
             interpretacao = "Tendência significativa de crescimento"
         else:
-            direcao = "decrescente"
+            direcao = "Decrescente"
             emoji = "📉"
             interpretacao = "Tendência significativa de declínio"
     else:
-        direcao = "sem tendência"
+        direcao = "Estável"
         emoji = "➖"
         interpretacao = "Não há tendência significativa"
     
@@ -196,11 +222,26 @@ def calcular_intervalo_confianca(valores, confianca=0.95):
     Returns:
         Tuple (limite_inferior, limite_superior)
     """
-    media = np.mean(valores)
-    erro_padrao = stats.sem(valores)
-    intervalo = stats.t.interval(confianca, len(valores)-1, loc=media, scale=erro_padrao)
-    
-    return intervalo
+    try:
+        valores_array = np.array(valores)
+        valores_validos = valores_array[valores_array > 0]
+        
+        if len(valores_validos) < 2:
+            return (0, 0)
+        
+        media = np.mean(valores_validos)
+        erro_padrao = stats.sem(valores_validos)
+        intervalo = stats.t.interval(
+            confianca, 
+            len(valores_validos)-1, 
+            loc=media, 
+            scale=erro_padrao
+        )
+        
+        return intervalo
+    except Exception as e:
+        print(f"Erro ao calcular intervalo de confiança: {str(e)}")
+        return (0, 0)
 
 
 def detectar_outliers(valores, metodo='iqr', threshold=1.5):
@@ -215,33 +256,49 @@ def detectar_outliers(valores, metodo='iqr', threshold=1.5):
     Returns:
         Dict com índices e valores dos outliers
     """
-    valores_array = np.array(valores)
-    
-    if metodo == 'iqr':
-        q1 = np.percentile(valores_array, 25)
-        q3 = np.percentile(valores_array, 75)
-        iqr = q3 - q1
+    try:
+        valores_array = np.array(valores)
+        valores_validos = valores_array[valores_array > 0]
         
-        limite_inferior = q1 - (threshold * iqr)
-        limite_superior = q3 + (threshold * iqr)
+        if len(valores_validos) < 4:
+            return {
+                'indices': [],
+                'valores': [],
+                'quantidade': 0
+            }
         
-        outliers_mask = (valores_array < limite_inferior) | (valores_array > limite_superior)
-    
-    elif metodo == 'zscore':
-        z_scores = np.abs(stats.zscore(valores_array))
-        outliers_mask = z_scores > threshold
-    
-    else:
-        raise ValueError("Método deve ser 'iqr' ou 'zscore'")
-    
-    indices_outliers = np.where(outliers_mask)[0]
-    valores_outliers = valores_array[outliers_mask]
-    
-    return {
-        'indices': indices_outliers.tolist(),
-        'valores': valores_outliers.tolist(),
-        'quantidade': len(indices_outliers)
-    }
+        if metodo == 'iqr':
+            q1 = np.percentile(valores_validos, 25)
+            q3 = np.percentile(valores_validos, 75)
+            iqr = q3 - q1
+            
+            limite_inferior = q1 - (threshold * iqr)
+            limite_superior = q3 + (threshold * iqr)
+            
+            outliers_mask = (valores_array < limite_inferior) | (valores_array > limite_superior)
+        
+        elif metodo == 'zscore':
+            z_scores = np.abs(stats.zscore(valores_validos))
+            outliers_mask = z_scores > threshold
+        
+        else:
+            raise ValueError("Método deve ser 'iqr' ou 'zscore'")
+        
+        indices_outliers = np.where(outliers_mask)[0]
+        valores_outliers = valores_array[outliers_mask]
+        
+        return {
+            'indices': indices_outliers.tolist(),
+            'valores': valores_outliers.tolist(),
+            'quantidade': len(indices_outliers)
+        }
+    except Exception as e:
+        print(f"Erro ao detectar outliers: {str(e)}")
+        return {
+            'indices': [],
+            'valores': [],
+            'quantidade': 0
+        }
 
 
 def calcular_crescimento(valores):
@@ -254,26 +311,48 @@ def calcular_crescimento(valores):
     Returns:
         Dict com análise de crescimento
     """
-    valores_array = np.array(valores)
-    
-    # Crescimento absoluto
-    crescimento_abs = np.diff(valores_array)
-    
-    # Crescimento percentual
-    crescimento_pct = (crescimento_abs / valores_array[:-1]) * 100
-    
-    # Estatísticas
-    crescimento_medio = np.mean(crescimento_pct)
-    crescimento_total = ((valores_array[-1] - valores_array[0]) / valores_array[0]) * 100
-    
-    return {
-        'absoluto': crescimento_abs.tolist(),
-        'percentual': crescimento_pct.tolist(),
-        'medio_pct': crescimento_medio,
-        'total_pct': crescimento_total,
-        'primeiro_valor': valores_array[0],
-        'ultimo_valor': valores_array[-1]
-    }
+    try:
+        valores_array = np.array(valores)
+        valores_validos = valores_array[valores_array > 0]
+        
+        if len(valores_validos) < 2:
+            return {
+                'absoluto': [],
+                'percentual': [],
+                'medio_pct': 0,
+                'total_pct': 0,
+                'primeiro_valor': 0,
+                'ultimo_valor': 0
+            }
+        
+        # Crescimento absoluto
+        crescimento_abs = np.diff(valores_validos)
+        
+        # Crescimento percentual
+        crescimento_pct = (crescimento_abs / valores_validos[:-1]) * 100
+        
+        # Estatísticas
+        crescimento_medio = np.mean(crescimento_pct)
+        crescimento_total = ((valores_validos[-1] - valores_validos[0]) / valores_validos[0]) * 100
+        
+        return {
+            'absoluto': crescimento_abs.tolist(),
+            'percentual': crescimento_pct.tolist(),
+            'medio_pct': crescimento_medio,
+            'total_pct': crescimento_total,
+            'primeiro_valor': valores_validos[0],
+            'ultimo_valor': valores_validos[-1]
+        }
+    except Exception as e:
+        print(f"Erro ao calcular crescimento: {str(e)}")
+        return {
+            'absoluto': [],
+            'percentual': [],
+            'medio_pct': 0,
+            'total_pct': 0,
+            'primeiro_valor': 0,
+            'ultimo_valor': 0
+        }
 
 
 def suavizar_serie(valores, janela=3, metodo='media'):
@@ -288,17 +367,78 @@ def suavizar_serie(valores, janela=3, metodo='media'):
     Returns:
         Array com valores suavizados
     """
-    valores_array = np.array(valores)
-    n = len(valores_array)
-    suavizados = np.zeros(n)
-    
-    for i in range(n):
-        inicio = max(0, i - janela//2)
-        fim = min(n, i + janela//2 + 1)
+    try:
+        valores_array = np.array(valores)
+        n = len(valores_array)
         
-        if metodo == 'media':
-            suavizados[i] = np.mean(valores_array[inicio:fim])
-        elif metodo == 'mediana':
-            suavizados[i] = np.median(valores_array[inicio:fim])
+        if n < janela:
+            return valores
+        
+        suavizados = np.zeros(n)
+        
+        for i in range(n):
+            inicio = max(0, i - janela//2)
+            fim = min(n, i + janela//2 + 1)
+            
+            janela_valores = valores_array[inicio:fim]
+            janela_validos = janela_valores[janela_valores > 0]
+            
+            if len(janela_validos) > 0:
+                if metodo == 'media':
+                    suavizados[i] = np.mean(janela_validos)
+                elif metodo == 'mediana':
+                    suavizados[i] = np.median(janela_validos)
+                else:
+                    suavizados[i] = valores_array[i]
+            else:
+                suavizados[i] = valores_array[i]
+        
+        return suavizados.tolist()
+    except Exception as e:
+        print(f"Erro ao suavizar série: {str(e)}")
+        return valores
+
+
+def validar_dados_previsao(df, coluna):
+    """
+    Valida se os dados são adequados para previsão
     
-    return suavizados.tolist()
+    Args:
+        df: DataFrame com os dados
+        coluna: Nome da coluna a validar
+    
+    Returns:
+        Dict com status de validação
+    """
+    try:
+        valores_validos = df[df[coluna] > 0][coluna]
+        
+        status = {
+            'valido': False,
+            'quantidade_pontos': len(valores_validos),
+            'minimo_necessario': 3,
+            'tem_variacao': False,
+            'mensagem': ''
+        }
+        
+        if len(valores_validos) < 3:
+            status['mensagem'] = f"Dados insuficientes: {len(valores_validos)} pontos (mínimo 3)"
+            return status
+        
+        # Verifica se há variação nos dados
+        if np.std(valores_validos) > 0:
+            status['tem_variacao'] = True
+            status['valido'] = True
+            status['mensagem'] = "Dados válidos para previsão"
+        else:
+            status['mensagem'] = "Dados sem variação (valores constantes)"
+        
+        return status
+    except Exception as e:
+        return {
+            'valido': False,
+            'quantidade_pontos': 0,
+            'minimo_necessario': 3,
+            'tem_variacao': False,
+            'mensagem': f"Erro na validação: {str(e)}"
+        }
