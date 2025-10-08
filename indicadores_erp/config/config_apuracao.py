@@ -42,9 +42,9 @@ MESES_APURADOS = [
     'Jun/25', 
     'Jul/25',
     'Ago/25',
-    'Set/25'
+    'Set/25'  # ← Último mês oficialmente apurado
     # Adicione novos meses apurados abaixo desta linha
-    # Exemplo: 'Out/25', 'Nov/25', etc.
+    # Exemplo: 'Out/25' (após apuração em Nov/25)
 ]
 
 # ============================================================================
@@ -52,10 +52,10 @@ MESES_APURADOS = [
 # ============================================================================
 
 # Data da última atualização (para referência)
-ULTIMA_ATUALIZACAO = "Set/25"
+ULTIMA_ATUALIZACAO = "Set/25"  # Último mês apurado
 
 # Próximo mês esperado para apuração
-PROXIMO_MES_APURACAO = "Out/25"
+PROXIMO_MES_APURACAO = "Out/25"  # Será apurado no primeiro dia útil de Nov/25
 
 # Data estimada de apuração do próximo mês
 DATA_ESTIMADA_APURACAO = "Primeiro dia útil de Nov/25"
