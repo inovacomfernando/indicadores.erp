@@ -1,0 +1,10 @@
+{
+  "name": "indicadores-erp",
+  "version": "1.0.0",
+  "description": "Dashboard Marketing SaaS ERP",
+  "scripts": {
+    "dev": "streamlit run indicadores_erp/app.py --server.port 8501 --server.address 0.0.0.0",
+    "start": "streamlit run indicadores_erp/app.py --server.port 8501 --server.address 0.0.0.0",
+    "build": "echo 'Python Streamlit app - no build needed'"
+  }
+}
