@@ -1,5 +1,11 @@
 """
 Tab 6: Forecast e Análise Preditiva Inteligente
+
+IMPORTANTE - CONTROLE DE APURAÇÃO:
+==================================
+Os dados são apurados no PRIMEIRO DIA ÚTIL do mês seguinte.
+
+Para atualizar meses apurados, edite o arquivo: config_apuracao.py
 """
 import streamlit as st
 import pandas as pd
@@ -13,14 +19,33 @@ from utils.forecast import (
 )
 from utils.charts import criar_grafico_projecao
 
+# Tenta importar a configuração de apuração
+try:
+    from config.config_apuracao import get_meses_apurados, get_info_apuracao
+    USA_CONFIG_APURACAO = True
+except ImportError:
+    USA_CONFIG_APURACAO = False
+    # Fallback para lista hardcoded
+    MESES_APURADOS_FALLBACK = ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25']
+
 
 def get_ultimo_mes_apurado(df):
     """
-    Identifica o último mês com dados apurados (valores diferentes de zero)
+    Identifica o último mês oficialmente apurado
+    
+    REGRA: Dados são apurados no primeiro dia útil do mês seguinte
+    Portanto, só consideramos meses COMPLETOS e já processados
     """
-    df_valido = df[(df['Sessões'] > 0) & (df['Receita Web'] > 0)].copy()
-    if len(df_valido) > 0:
-        return df_valido.iloc[-1]['Mês']
+    if USA_CONFIG_APURACAO:
+        meses_apurados = get_meses_apurados()
+    else:
+        meses_apurados = MESES_APURADOS_FALLBACK
+    
+    # Pega o último mês da lista de apurados que existe no DataFrame
+    for mes in reversed(meses_apurados):
+        if mes in df['Mês'].values:
+            return mes
+    
     return None
 
 
@@ -151,15 +176,34 @@ def render_tab_forecast(df):
         return
     
     # Info sobre apuração
-    st.info(f"""
-    📅 **Informações sobre Apuração e Forecast:**
-    
-    - **Último mês apurado:** {ultimo_mes}
-    - **Dados apurados no:** Primeiro dia útil do próximo mês
-    - **Forecast baseado em:** Dados históricos de {ultimo_mes} e anteriores
-    
-    ⚠️ **Atenção:** As previsões serão atualizadas automaticamente após a apuração de cada novo mês.
-    """)
+    if USA_CONFIG_APURACAO:
+        info = get_info_apuracao()
+        st.info(f"""
+        📅 **Informações sobre Apuração e Forecast:**
+        
+        - **Último mês apurado:** {info['ultimo_mes']}
+        - **Próximo mês a apurar:** {info['proximo_mes']}
+        - **Data estimada de apuração:** {info['data_estimada']}
+        - **Total de meses apurados:** {info['total_meses']}
+        - **Forecast baseado em:** Dados históricos até {info['ultimo_mes']}
+        
+        ⚠️ **Atenção:** 
+        - Apenas meses COMPLETOS e APURADOS são usados nas previsões
+        - Para atualizar após nova apuração, edite: `config/config_apuracao.py`
+        """)
+    else:
+        st.info(f"""
+        📅 **Informações sobre Apuração e Forecast:**
+        
+        - **Último mês apurado:** {ultimo_mes}
+        - **Próximo mês a ser apurado:** Após {ultimo_mes}, no primeiro dia útil do mês seguinte
+        - **Forecast baseado em:** Dados históricos de {ultimo_mes} e anteriores
+        
+        ⚠️ **Atenção:** 
+        - Meses com dados parciais NÃO são considerados para forecast
+        - Apenas meses COMPLETOS e APURADOS são usados nas previsões
+        - Para facilitar atualizações, crie o arquivo `config/config_apuracao.py`
+        """)
     
     # Meses para forecast
     meses_forecast = get_meses_forecast(ultimo_mes, df)
