@@ -1,9 +1,11 @@
 """
-Tab 6: Forecast e Análise Preditiva
+Tab 6: Forecast e Análise Preditiva Inteligente
 """
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
 from utils.forecast import (
     prever_cenarios,
     avaliar_qualidade_previsao,
@@ -12,27 +14,197 @@ from utils.forecast import (
 from utils.charts import criar_grafico_projecao
 
 
+def get_ultimo_mes_apurado(df):
+    """
+    Identifica o último mês com dados apurados (valores diferentes de zero)
+    """
+    df_valido = df[(df['Sessões'] > 0) & (df['Receita Web'] > 0)].copy()
+    if len(df_valido) > 0:
+        return df_valido.iloc[-1]['Mês']
+    return None
+
+
+def get_meses_forecast(ultimo_mes_apurado, df):
+    """
+    Retorna os meses para forecast baseado no último mês apurado
+    """
+    todos_meses = df['Mês'].tolist()
+    
+    # Encontra o índice do último mês apurado
+    try:
+        idx_ultimo = todos_meses.index(ultimo_mes_apurado)
+    except ValueError:
+        return []
+    
+    # Retorna os meses seguintes que ainda não foram apurados
+    meses_forecast = todos_meses[idx_ultimo + 1:]
+    # Remove zeros do final
+    meses_forecast = [m for m in meses_forecast if m]
+    
+    return meses_forecast
+
+
+def aplicar_ajustes_precos(previsao_base, mes, ticket_medio_atual):
+    """
+    Aplica ajustes de preços dos novos planos
+    
+    Novos preços:
+    - MEI: R$ 84,90
+    - Simples Nacional: R$ 154,90
+    - Lucro Real/Presumido: R$ 199,90
+    
+    Ticket Médio estimado: R$ 146,56 (considerando distribuição de clientes)
+    """
+    # Novo ticket médio ponderado (estimativa)
+    novo_ticket_medio = 146.56
+    
+    # Aumento percentual
+    aumento_percentual = (novo_ticket_medio / ticket_medio_atual) - 1
+    
+    # Aplica gradualmente a partir de Out/25
+    if mes == 'Out/25':
+        # Início gradual (20% dos clientes no novo preço)
+        fator = 1 + (aumento_percentual * 0.20)
+    elif mes == 'Nov/25':
+        # Metade dos clientes migrados
+        fator = 1 + (aumento_percentual * 0.50)
+    elif mes == 'Dez/25':
+        # Maioria dos clientes no novo preço
+        fator = 1 + (aumento_percentual * 0.80)
+    else:
+        # Totalmente migrado
+        fator = 1 + aumento_percentual
+    
+    return previsao_base * fator
+
+
+def aplicar_campanha_black_friday(previsao_base, mes, metrica):
+    """
+    Aplica efeito da campanha Black Friday
+    
+    Campanha:
+    - Última semana de Out/25: Esquenta Black (pequeno aumento)
+    - Nov/25 completo: Black Friday principal (grande aumento)
+    - Até 12/Dez: Extensão (redução gradual)
+    - Pós 12/Dez: Parada operacional (forte redução)
+    """
+    
+    if metrica in ['Leads', 'Sessões', 'Primeira Visita', 'Clientes Web']:
+        # Aumento de tráfego e conversões
+        if mes == 'Out/25':
+            # Esquenta Black (última semana representa ~25% do mês)
+            return previsao_base * 1.15  # +15% no mês
+        elif mes == 'Nov/25':
+            # Black Friday mês completo
+            return previsao_base * 1.45  # +45% no mês
+        elif mes == 'Dez/25':
+            # Até dia 12 (40% do mês) + parada depois
+            return previsao_base * 0.85  # -15% (média do mês)
+    
+    elif metrica in ['Receita Web']:
+        # Receita considerando desconto de até 50% nos 4 primeiros meses
+        if mes == 'Out/25':
+            # Esquenta com desconto menor
+            return previsao_base * 1.10  # +10% (mais clientes, desconto moderado)
+        elif mes == 'Nov/25':
+            # Black Friday com desconto maior, mas muito mais volume
+            return previsao_base * 1.25  # +25% (desconto compensado por volume)
+        elif mes == 'Dez/25':
+            # Redução por parada
+            return previsao_base * 0.75  # -25%
+    
+    elif metrica in ['CAC']:
+        # CAC tende a subir em campanhas agressivas
+        if mes == 'Out/25':
+            return previsao_base * 1.10
+        elif mes == 'Nov/25':
+            return previsao_base * 1.20  # Competição aumenta CPC
+        elif mes == 'Dez/25':
+            return previsao_base * 0.90  # Redução de investimento
+    
+    elif metrica in ['Total Ads', 'Custo Meta', 'Custo Google']:
+        # Aumento de investimento em ads
+        if mes == 'Out/25':
+            return previsao_base * 1.20
+        elif mes == 'Nov/25':
+            return previsao_base * 1.50  # Investimento máximo
+        elif mes == 'Dez/25':
+            return previsao_base * 0.60  # Redução significativa
+    
+    return previsao_base
+
+
 def render_tab_forecast(df):
     """
-    Renderiza a tab de forecast
+    Renderiza a tab de forecast com lógica de apuração
     
     Args:
-        df: DataFrame completo (não filtrado)
+        df: DataFrame completo
     """
     st.subheader("🔮 Forecast: Cenários para Projeção e Estratégia")
     
+    # Identifica último mês apurado
+    ultimo_mes = get_ultimo_mes_apurado(df)
+    
+    if not ultimo_mes:
+        st.error("❌ Não há dados apurados suficientes para gerar previsões.")
+        return
+    
+    # Info sobre apuração
+    st.info(f"""
+    📅 **Informações sobre Apuração e Forecast:**
+    
+    - **Último mês apurado:** {ultimo_mes}
+    - **Dados apurados no:** Primeiro dia útil do próximo mês
+    - **Forecast baseado em:** Dados históricos de {ultimo_mes} e anteriores
+    
+    ⚠️ **Atenção:** As previsões serão atualizadas automaticamente após a apuração de cada novo mês.
+    """)
+    
+    # Meses para forecast
+    meses_forecast = get_meses_forecast(ultimo_mes, df)
+    
+    if not meses_forecast:
+        st.warning("⚠️ Não há períodos futuros para projeção.")
+        return
+    
+    st.markdown(f"**Projetando para:** {', '.join(meses_forecast)}")
+    
+    # Info sobre campanhas
+    if 'Out/25' in meses_forecast or 'Nov/25' in meses_forecast or 'Dez/25' in meses_forecast:
+        st.markdown("""
+        ---
+        ### 🎯 Eventos Considerados no Forecast
+        
+        **Aumento de Preços dos Planos:**
+        - MEI: R$ 84,90
+        - Simples Nacional: R$ 154,90
+        - Lucro Real/Presumido: R$ 199,90
+        
+        **Campanha Black Friday 2025:**
+        - 🔥 **Última semana de Out/25:** Esquenta Black (aumento moderado)
+        - 🚀 **Nov/25 completo:** Black Friday principal (até 50% OFF nos 4 primeiros meses)
+        - 📉 **Até 12/Dez:** Extensão da campanha
+        - 🛑 **Pós 12/Dez:** Parada operacional de fim de ano
+        
+        ---
+        """)
+    
     try:
-        # Preparação dos dados
-        meses = df['Mês'].tolist()
-        previsao_meses = ["Out/25", "Nov/25", "Dez/25"]
+        # Filtra apenas dados apurados
+        df_historico = df[df['Mês'] <= ultimo_mes].copy()
+        meses_historico = df_historico['Mês'].tolist()
         
         # KPIs para previsão
-        kpis = ["Leads", "Clientes Web", "Receita Web", "CAC", "LTV", "ROI (%)"]
+        kpis = ["Leads", "Clientes Web", "Receita Web", "CAC", "LTV", "ROI (%)", "Total Ads"]
+        
+        # Ticket médio atual para cálculo de ajuste
+        ticket_medio_atual = df_historico['Ticket Médio'].iloc[-1]
         
         # Calcular previsões
         resultados = {}
         for kpi in kpis:
-            resultados[kpi] = prever_cenarios(df, kpi, num_previsoes=len(previsao_meses))
+            resultados[kpi] = prever_cenarios(df_historico, kpi, num_previsoes=len(meses_forecast))
         
         # Exibir resultados
         st.markdown("### Previsões com Validação Estatística")
@@ -44,15 +216,40 @@ def render_tab_forecast(df):
                 col1, col2 = st.columns([2, 1])
                 
                 with col1:
-                    # Gráfico com previsões
+                    # Aplica ajustes nas previsões
+                    previsoes_ajustadas = []
+                    otimista_ajustado = []
+                    conservador_ajustado = []
+                    
+                    for i, mes in enumerate(meses_forecast):
+                        prev_base = resultados[kpi]['previsao'].iloc[i]
+                        otim_base = resultados[kpi]['otimista'].iloc[i]
+                        cons_base = resultados[kpi]['conservador'].iloc[i]
+                        
+                        # Aplica campanha Black Friday
+                        prev_base = aplicar_campanha_black_friday(prev_base, mes, kpi)
+                        otim_base = aplicar_campanha_black_friday(otim_base, mes, kpi)
+                        cons_base = aplicar_campanha_black_friday(cons_base, mes, kpi)
+                        
+                        # Aplica ajuste de preços (apenas para Receita Web e LTV)
+                        if kpi in ['Receita Web', 'LTV']:
+                            prev_base = aplicar_ajustes_precos(prev_base, mes, ticket_medio_atual)
+                            otim_base = aplicar_ajustes_precos(otim_base, mes, ticket_medio_atual)
+                            cons_base = aplicar_ajustes_precos(cons_base, mes, ticket_medio_atual)
+                        
+                        previsoes_ajustadas.append(prev_base)
+                        otimista_ajustado.append(otim_base)
+                        conservador_ajustado.append(cons_base)
+                    
+                    # Gráfico com previsões ajustadas
                     fig = criar_grafico_projecao(
-                        meses_historico=meses,
-                        valores_historico=df[kpi].tolist(),
-                        meses_previsao=previsao_meses,
-                        valores_previsao=resultados[kpi]['previsao'].tolist(),
-                        valores_otimista=resultados[kpi]['otimista'].tolist(),
-                        valores_conservador=resultados[kpi]['conservador'].tolist(),
-                        title=f"Previsão: {kpi}",
+                        meses_historico=meses_historico,
+                        valores_historico=df_historico[kpi].tolist(),
+                        meses_previsao=meses_forecast,
+                        valores_previsao=previsoes_ajustadas,
+                        valores_otimista=otimista_ajustado,
+                        valores_conservador=conservador_ajustado,
+                        title=f"Previsão: {kpi} (com ajustes de campanha)",
                         height=400
                     )
                     st.plotly_chart(fig, use_container_width=True)
@@ -96,7 +293,7 @@ def render_tab_forecast(df):
         
         # Análise de correlação
         st.markdown("### Análise de Correlação entre KPIs")
-        corr_matrix = df[kpis].corr()
+        corr_matrix = df_historico[kpis].corr()
         
         fig_corr = px.imshow(
             corr_matrix,
@@ -105,40 +302,40 @@ def render_tab_forecast(df):
             aspect="auto"
         )
         fig_corr.update_layout(
-            title="Matriz de Correlação",
+            title="Matriz de Correlação (Dados Históricos)",
             height=500
         )
         st.plotly_chart(fig_corr, use_container_width=True)
         
         # Insights
-        st.markdown("### Insights das Análises")
+        st.markdown("### 💡 Insights e Recomendações")
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.markdown("""
-            **Qualidade das Previsões:**
-            - Modelos com R² > 0.8 são altamente confiáveis
-            - MAPE < 10% indica previsões precisas
-            - Tendências significativas sugerem padrões consistentes
+            **Sobre as Previsões:**
+            - ✅ Modelos com R² > 0.8 são altamente confiáveis
+            - ✅ MAPE < 10% indica previsões precisas
+            - ✅ Tendências significativas sugerem padrões consistentes
             
-            **Recomendações para Uso:**
-            1. Priorize KPIs com maior R² e menor MAPE
-            2. Use intervalos de confiança para planejamento
-            3. Considere tendências significativas nas decisões
+            **Ajustes Aplicados:**
+            - 📊 Efeito da campanha Black Friday
+            - 💰 Impacto do aumento de preços
+            - 📅 Sazonalidade de fim de ano
             """)
         
         with col2:
             st.markdown("""
             **Limitações do Modelo:**
-            - Assume tendência linear
-            - Sensível a mudanças bruscas
-            - Requer monitoramento contínuo
+            - ⚠️ Assume comportamento baseado em histórico
+            - ⚠️ Eventos inesperados podem alterar previsões
+            - ⚠️ Requer atualização após cada apuração
             
             **Próximos Passos:**
-            1. Atualizar dados mensalmente
-            2. Validar previsões vs. realizado
-            3. Ajustar modelos conforme necessário
+            1. Monitorar resultados vs. previsões
+            2. Ajustar estratégia com base nos dados
+            3. Atualizar modelo após cada apuração
             """)
     
     except Exception as e:
