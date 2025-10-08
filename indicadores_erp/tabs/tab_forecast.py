@@ -26,6 +26,7 @@ try:
 except ImportError:
     USA_CONFIG_APURACAO = False
     # Fallback para lista hardcoded
+    # IMPORTANTE: Set/25 está incluído - é o último mês apurado
     MESES_APURADOS_FALLBACK = ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25']
 
 
@@ -214,6 +215,47 @@ def render_tab_forecast(df):
     
     st.markdown(f"**Projetando para:** {', '.join(meses_forecast)}")
     
+    # Debug: Mostra status de cada mês
+    with st.expander("🔍 Ver status detalhado dos meses"):
+        st.markdown("#### Status de Apuração por Mês")
+        
+        if USA_CONFIG_APURACAO:
+            meses_apurados_lista = get_meses_apurados()
+        else:
+            meses_apurados_lista = MESES_APURADOS_FALLBACK
+        
+        todos_meses = df['Mês'].tolist()
+        status_data = []
+        
+        for mes in todos_meses:
+            if not mes or mes == '':
+                continue
+                
+            valores = df[df['Mês'] == mes].iloc[0]
+            tem_dados = valores['Sessões'] > 0 or valores['Receita Web'] > 0
+            esta_apurado = mes in meses_apurados_lista
+            
+            status_data.append({
+                'Mês': mes,
+                'Tem Dados': '✅ Sim' if tem_dados else '❌ Não',
+                'Oficialmente Apurado': '✅ SIM' if esta_apurado else '❌ NÃO',
+                'Usado no Forecast': '✅ Sim' if esta_apurado else '❌ Não',
+                'Status': '📊 Histórico' if esta_apurado else ('🔮 Projeção' if mes in meses_forecast else '⏳ Aguardando')
+            })
+        
+        df_status = pd.DataFrame(status_data)
+        st.dataframe(df_status, use_container_width=True, hide_index=True)
+        
+        st.markdown("""
+        **Legenda:**
+        - ✅ **Oficialmente Apurado**: Mês está na lista de controle e é usado para gerar previsões
+        - ❌ **NÃO Apurado**: Mês não está oficialmente apurado (mesmo tendo dados parciais)
+        - 📊 **Histórico**: Dados usados como base para previsões
+        - 🔮 **Projeção**: Meses que serão previstos
+        - ⏳ **Aguardando**: Mês com dados parciais aguardando apuração oficial
+        """)
+    
+    
     # Info sobre campanhas
     if 'Out/25' in meses_forecast or 'Nov/25' in meses_forecast or 'Dez/25' in meses_forecast:
         st.markdown("""
@@ -235,9 +277,23 @@ def render_tab_forecast(df):
         """)
     
     try:
-        # Filtra apenas dados apurados
-        df_historico = df[df['Mês'] <= ultimo_mes].copy()
+        # Filtra apenas dados apurados (usando a lista oficial de meses apurados)
+        if USA_CONFIG_APURACAO:
+            meses_apurados_lista = get_meses_apurados()
+        else:
+            meses_apurados_lista = MESES_APURADOS_FALLBACK
+        
+        # Filtra o DataFrame para incluir APENAS meses apurados
+        df_historico = df[df['Mês'].isin(meses_apurados_lista)].copy()
+        
+        if len(df_historico) < 3:
+            st.error("❌ Dados históricos insuficientes para gerar previsões (mínimo 3 meses apurados).")
+            return
+        
         meses_historico = df_historico['Mês'].tolist()
+        
+        # Exibe quais meses estão sendo usados
+        st.success(f"✅ Usando dados históricos de: {', '.join(meses_historico)}")
         
         # KPIs para previsão
         kpis = ["Leads", "Clientes Web", "Receita Web", "CAC", "LTV", "ROI (%)", "Total Ads"]
