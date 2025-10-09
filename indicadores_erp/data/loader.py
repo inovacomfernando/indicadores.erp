@@ -3,10 +3,18 @@ Carregamento e preparação de dados
 """
 import pandas as pd
 import streamlit as st
+from datetime import datetime
 
-@st.cache_data
+@st.cache_data(ttl=300)  # Cache expira a cada 5 minutos (300 segundos)
 def load_data():
-    """Carrega os dados do dashboard"""
+    """
+    Carrega os dados do dashboard
+    
+    IMPORTANTE: Para forçar atualização após alterar dados:
+    - Opção 1: Pressione 'C' no dashboard e clique em "Clear cache"
+    - Opção 2: Aguarde 5 minutos (cache automático)
+    - Opção 3: Use o botão "Recarregar Dados" na sidebar (se disponível)
+    """
     data = {
         'Mês': ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25', 'Out/25', 'Nov/25', 'Dez/25'],
         'Sessões': [5218, 5600, 5717, 7654, 8028, 2400, 0, 0],
@@ -25,22 +33,32 @@ def load_data():
         'CAC:LTV': [4.9, 4.4, 5.5, 3.9, 4.1, 1.9, 0, 0],
         'ROI (%)': [390.52, 341.57, 446.70, 289.45, 309.90, 94.98, 0, 0]
     }
-    return pd.DataFrame(data)
+    
+    # Adiciona timestamp para debug
+    df = pd.DataFrame(data)
+    df.attrs['carregado_em'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    return df
+
 
 def filter_data(df, selected_months):
     """Filtra dados pelos meses selecionados"""
-
     return df[df['Mês'].isin(selected_months)]
 
 
+def get_data_info(df):
+    """
+    Retorna informações sobre quando os dados foram carregados
+    
+    Returns:
+        str: Timestamp do carregamento
+    """
+    return df.attrs.get('carregado_em', 'Desconhecido')
 
 
-
-
-
-
-
-
-
-
-
+def force_reload_data():
+    """
+    Força o recarregamento dos dados limpando o cache
+    """
+    st.cache_data.clear()
+    return load_data()
