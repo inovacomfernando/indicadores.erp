@@ -9,7 +9,7 @@ def load_data():
     """Carrega os dados do dashboard"""
     data = {
         'Mês': ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25', 'Out/25', 'Nov/25', 'Dez/25'],
-        'Sessões': [5218, 5600, 5717, 7654, 8028, 2361, 0, 0],
+        'Sessões': [5218, 5600, 5717, 7654, 8028, 2370, 0, 0],
         'Primeira Visita': [2900, 3562, 3500, 5400, 5548, 1849, 0, 0],
         'Leads': [270, 290, 401, 600, 604, 183, 0, 0],
         'TC Usuários (%)': [9.32, 8.79, 11.46, 11.11, 10.89, 9.90, 0, 0],
@@ -31,6 +31,7 @@ def filter_data(df, selected_months):
     """Filtra dados pelos meses selecionados"""
 
     return df[df['Mês'].isin(selected_months)]
+
 
 
 
