@@ -42,7 +42,7 @@ MESES_APURADOS = [
     'Jun/25', 
     'Jul/25',
     'Ago/25',
-    'Set/25'  
+    'Set/25',  
     'Out/25' # ← Último mês oficialmente apurado
     # Adicione novos meses apurados abaixo desta linha
     # Exemplo: 'Out/25' (após apuração em Nov/25)
