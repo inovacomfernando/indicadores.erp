@@ -6,10 +6,15 @@ import streamlit as st
 # Imports dos módulos
 from config.settings import PAGE_CONFIG, BENCHMARKS
 from config.styles import get_custom_css
+from config_apuracao import get_meses_apurados
+from config_apuracao import is_mes_apurado
+from config_apuracao import get_ultimo_mes_apurado
+from config_apuracao import get_info_apuracao
 from data.loader import load_data, filter_data
 from components.header import render_header, render_sidebar
 from components.metrics import render_main_metrics
 from components.alerts import render_main_alerts
+
 
 # Imports das tabs
 from tabs.tab_evolucao import render_tab_evolucao
@@ -82,3 +87,4 @@ with tabs[6]:
 # Footer
 st.markdown("---")
 st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Setembro 2025")
+
