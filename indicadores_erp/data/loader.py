@@ -1,28 +1,29 @@
 """
-Carregamento e preparação de dados
+Data loader for monthly metrics from Supabase
 """
-import pandas as pd
 import streamlit as st
+import pandas as pd
 from datetime import datetime
-from auth.supabase_client import get_supabase_client
+from ..auth.supabase_client import get_supabase_client
+from ..auth.auth_manager import get_current_company_id
 
 @st.cache_data(ttl=300)
-def load_data(company_id: str = None):
+def load_data():
     """
-    Carrega os dados do dashboard do Supabase
-
-    Args:
-        company_id: ID da empresa (obrigatório para dados filtrados)
+    Load monthly metrics data from Supabase for the current company
 
     Returns:
-        DataFrame com os dados das métricas
+        pd.DataFrame: DataFrame with monthly metrics
     """
-    if not company_id:
-        return pd.DataFrame()
-
     try:
-        supabase = get_supabase_client()
+        company_id = get_current_company_id()
+        
+        if not company_id:
+            st.error("Erro: Empresa não identificada. Faça login novamente.")
+            return pd.DataFrame()
 
+        supabase = get_supabase_client()
+        
         response = supabase.table('monthly_metrics')\
             .select('*')\
             .eq('company_id', company_id)\
@@ -34,60 +35,52 @@ def load_data(company_id: str = None):
             return pd.DataFrame()
 
         df = pd.DataFrame(response.data)
+        
+        # Ensure proper data types
+        numeric_columns = ['sessions', 'first_visits', 'leads', 'web_clients', 
+                          'web_revenue', 'avg_ticket', 'meta_cost', 'google_cost', 
+                          'total_ads', 'cac', 'ltv', 'roi', 'tc_users', 'tc_leads',
+                          'cac_ltv_ratio']
+        
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        df_formatted = pd.DataFrame({
-            'Mês': df['month'],
-            'Sessões': df['sessions'],
-            'Primeira Visita': df['first_visits'],
-            'Leads': df['leads'],
-            'TC Usuários (%)': df['tc_users'],
-            'Clientes Web': df['web_clients'],
-            'TC Leads (%)': df['tc_leads'],
-            'Receita Web': df['web_revenue'],
-            'Ticket Médio': df['avg_ticket'],
-            'Custo Meta': df['meta_cost'],
-            'Custo Google': df['google_cost'],
-            'Total Ads': df['total_ads'],
-            'CAC': df['cac'],
-            'LTV': df['ltv'],
-            'CAC:LTV': df['cac_ltv_ratio'],
-            'ROI (%)': df['roi']
-        })
-
-        df_formatted.attrs['carregado_em'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        return df_formatted
+        return df
 
     except Exception as e:
         st.error(f"Erro ao carregar dados: {str(e)}")
         return pd.DataFrame()
 
-
-def filter_data(df, selected_months):
-    """Filtra dados pelos meses selecionados"""
-    return df[df['Mês'].isin(selected_months)]
-
-
-def get_data_info(df):
+def filter_data(df, start_date=None, end_date=None):
     """
-    Retorna informações sobre quando os dados foram carregados
-    
-    Returns:
-        str: Timestamp do carregamento
-    """
-    return df.attrs.get('carregado_em', 'Desconhecido')
-
-
-def force_reload_data(company_id: str = None):
-    """
-    Força o recarregamento dos dados limpando o cache
+    Filter data by date range
 
     Args:
-        company_id: ID da empresa
+        df: DataFrame with monthly metrics
+        start_date: Start date (optional)
+        end_date: End date (optional)
+
+    Returns:
+        pd.DataFrame: Filtered DataFrame
     """
-    st.cache_data.clear()
-    return load_data(company_id)
+    if df.empty:
+        return df
 
+    filtered_df = df.copy()
 
+    if start_date:
+        filtered_df = filtered_df[
+            (filtered_df['year'] > start_date.year) |
+            ((filtered_df['year'] == start_date.year) & 
+             (filtered_df['month_number'] >= start_date.month))
+        ]
 
+    if end_date:
+        filtered_df = filtered_df[
+            (filtered_df['year'] < end_date.year) |
+            ((filtered_df['year'] == end_date.year) & 
+             (filtered_df['month_number'] <= end_date.month))
+        ]
 
+    return filtered_df
