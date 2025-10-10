@@ -2,6 +2,13 @@
 Login page
 """
 import streamlit as st
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from auth.auth_manager import sign_in, sign_up, init_auth_state
 
 def render_login_page():
