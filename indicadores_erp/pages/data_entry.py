@@ -2,7 +2,14 @@
 Data entry page for monthly metrics
 """
 import streamlit as st
+import sys
+from pathlib import Path
 from datetime import datetime
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from auth.supabase_client import get_supabase_client
 from auth.auth_manager import get_current_company_id
 
