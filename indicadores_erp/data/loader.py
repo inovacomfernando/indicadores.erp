@@ -1,86 +1,64 @@
 """
-Data loader for monthly metrics from Supabase
+Carregamento e preparação de dados
 """
-import streamlit as st
 import pandas as pd
+import streamlit as st
 from datetime import datetime
-from ..auth.supabase_client import get_supabase_client
-from ..auth.auth_manager import get_current_company_id
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300)  # Cache expira a cada 5 minutos (300 segundos)
 def load_data():
     """
-    Load monthly metrics data from Supabase for the current company
+    Carrega os dados do dashboard
+    
+    IMPORTANTE: Para forçar atualização após alterar dados:
+    - Opção 1: Pressione 'C' no dashboard e clique em "Clear cache"
+    - Opção 2: Aguarde 5 minutos (cache automático)
+    - Opção 3: Use o botão "Recarregar Dados" na sidebar (se disponível)
+    """
+    data = {
+        'Mês': ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25', 'Out/25', 'Nov/25', 'Dez/25'],
+        'Sessões': [5218, 5600, 5717, 7654, 8028, 2660, 0, 0],
+        'Primeira Visita': [2900, 3562, 3500, 5400, 5548, 2046, 0, 0],
+        'Leads': [270, 290, 401, 600, 604, 207, 0, 0],
+        'TC Usuários (%)': [9.32, 8.79, 11.46, 11.11, 10.89, 10.12, 0, 0],
+        'Clientes Web': [16, 15, 18, 20, 24, 4, 0, 0],
+        'TC Leads (%)': [5.93, 5.50, 4.50, 3.33, 3.97, 1.93, 0, 0],
+        'Receita Web': [2114.56, 1991.31, 2591.91, 2728.92, 3393.42, 565.60, 0, 0],
+        'Ticket Médio': [132.16, 132.75, 149.99, 136.45, 141.40, 141.40, 0, 0],
+        'Custo Meta': [2238.52, 2328.16, 2731.39, 3476.39, 3807.17, 1111.03, 0, 0],
+        'Custo Google': [2934.49, 3083.29, 3194.67, 4932.45, 6127.84, 1800.43, 0, 0],
+        'Total Ads': [5173.01, 5411.32, 5926.06, 8408.84, 9935.01, 2911.46, 0, 0],
+        'CAC': [323.31, 360.75, 329.23, 420.44, 413.96, 696.09, 0, 0],
+        'LTV': [1585.92, 1593.00, 1799.88, 1637.40, 1696.80, 1696.80, 0, 0],
+        'CAC:LTV': [4.9, 4.4, 5.5, 3.9, 4.1, 2.3, 0, 0],
+        'ROI (%)': [390.52, 341.57, 446.70, 289.45, 309.90, 133.12, 0, 0]
+    }
+    
+    # Adiciona timestamp para debug
+    df = pd.DataFrame(data)
+    df.attrs['carregado_em'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    return df
 
+
+def filter_data(df, selected_months):
+    """Filtra dados pelos meses selecionados"""
+    return df[df['Mês'].isin(selected_months)]
+
+
+def get_data_info(df):
+    """
+    Retorna informações sobre quando os dados foram carregados
+    
     Returns:
-        pd.DataFrame: DataFrame with monthly metrics
+        str: Timestamp do carregamento
     """
-    try:
-        company_id = get_current_company_id()
-        
-        if not company_id:
-            st.error("Erro: Empresa não identificada. Faça login novamente.")
-            return pd.DataFrame()
+    return df.attrs.get('carregado_em', 'Desconhecido')
 
-        supabase = get_supabase_client()
-        
-        response = supabase.table('monthly_metrics')\
-            .select('*')\
-            .eq('company_id', company_id)\
-            .order('year', desc=False)\
-            .order('month_number', desc=False)\
-            .execute()
 
-        if not response.data:
-            return pd.DataFrame()
-
-        df = pd.DataFrame(response.data)
-        
-        # Ensure proper data types
-        numeric_columns = ['sessions', 'first_visits', 'leads', 'web_clients', 
-                          'web_revenue', 'avg_ticket', 'meta_cost', 'google_cost', 
-                          'total_ads', 'cac', 'ltv', 'roi', 'tc_users', 'tc_leads',
-                          'cac_ltv_ratio']
-        
-        for col in numeric_columns:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-        return df
-
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {str(e)}")
-        return pd.DataFrame()
-
-def filter_data(df, start_date=None, end_date=None):
+def force_reload_data():
     """
-    Filter data by date range
-
-    Args:
-        df: DataFrame with monthly metrics
-        start_date: Start date (optional)
-        end_date: End date (optional)
-
-    Returns:
-        pd.DataFrame: Filtered DataFrame
+    Força o recarregamento dos dados limpando o cache
     """
-    if df.empty:
-        return df
-
-    filtered_df = df.copy()
-
-    if start_date:
-        filtered_df = filtered_df[
-            (filtered_df['year'] > start_date.year) |
-            ((filtered_df['year'] == start_date.year) & 
-             (filtered_df['month_number'] >= start_date.month))
-        ]
-
-    if end_date:
-        filtered_df = filtered_df[
-            (filtered_df['year'] < end_date.year) |
-            ((filtered_df['year'] == end_date.year) & 
-             (filtered_df['month_number'] <= end_date.month))
-        ]
-
-    return filtered_df
+    st.cache_data.clear()
+    return load_data()
