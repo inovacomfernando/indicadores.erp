@@ -3,6 +3,13 @@ Admin panel for data management
 """
 import streamlit as st
 import pandas as pd
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 from auth.supabase_client import get_supabase_client
 from auth.auth_manager import get_current_company_id
 
