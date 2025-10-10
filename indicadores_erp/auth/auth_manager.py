@@ -2,7 +2,7 @@
 Authentication manager for Streamlit app
 """
 import streamlit as st
-from .supabase_client import get_supabase_client
+from indicadores_erp.auth.supabase_client import get_supabase_client
 
 def init_auth_state():
     """Initialize authentication state in session"""
@@ -122,3 +122,4 @@ def get_current_company_id():
         str: Company ID or None
     """
     return st.session_state.get('company_id')
+
