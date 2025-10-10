@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-SUPABASE_KEY = os.getenv("VITE_SUPABASE_ANON_KEY")
+SUPABASE_URL = https://qweqxsxexjjunsnrlqpq.supabase.co
+SUPABASE_KEY = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF3ZXF4c3hleGpqdW5zbnJscXBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxMDI5NjEsImV4cCI6MjA3NTY3ODk2MX0.llyCziDRRFBHJhjGbGhicRzmnED77so8pIOJoIocQFo
 
 def get_supabase_client() -> Client:
     """
@@ -21,3 +21,4 @@ def get_supabase_client() -> Client:
         raise ValueError("Supabase credentials not found in environment variables")
 
     return create_client(SUPABASE_URL, SUPABASE_KEY)
+
