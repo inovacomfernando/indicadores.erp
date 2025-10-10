@@ -1,120 +1,82 @@
 """
-Arquivo principal refatorado com autenticação
+Main Streamlit application
 """
 import streamlit as st
+import sys
+from pathlib import Path
 
-from config.settings import PAGE_CONFIG, BENCHMARKS
-from config.styles import get_custom_css
-from data.loader import load_data, filter_data
-from components.header import render_header, render_sidebar
-from components.metrics import render_main_metrics
-from components.alerts import render_main_alerts
-
-from tabs.tab_evolucao import render_tab_evolucao
-from tabs.tab_financeiro import render_tab_financeiro
-from tabs.tab_conversao import render_tab_conversao
-from tabs.tab_benchmarks import render_tab_benchmarks
-from tabs.tab_recomendacoes import render_tab_recomendacoes
-from tabs.tab_forecast import render_tab_forecast
-from tabs.tab_contador import render_tab_contador
+# Add project root to Python path
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
 
 from auth.auth_manager import init_auth_state, is_authenticated, sign_out, get_current_company_id
+from data.loader import load_data, filter_data
 from pages.login import render_login_page
 from pages.data_entry import render_data_entry_page
 from pages.admin import render_admin_page
 
-st.set_page_config(**PAGE_CONFIG)
+# Page configuration
+st.set_page_config(
+    page_title="Dashboard Marketing - SaaS ERP",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.markdown(get_custom_css(), unsafe_allow_html=True)
-
+# Initialize authentication
 init_auth_state()
 
+# Show login page if not authenticated
 if not is_authenticated():
     render_login_page()
-else:
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### Menu")
+    st.stop()
 
-        if st.button("📊 Dashboard", use_container_width=True):
-            st.session_state.page = "dashboard"
+# Sidebar navigation
+with st.sidebar:
+    st.title("📊 Dashboard Marketing")
+    st.markdown("---")
+    
+    # User info
+    if st.session_state.user:
+        st.markdown(f"**Usuário:** {st.session_state.user.email}")
+    
+    st.markdown("---")
+    
+    # Navigation menu
+    page = st.radio(
+        "Navegação",
+        ["📈 Dashboard", "📝 Cadastrar Métricas", "⚙️ Administração"],
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
+    
+    # Logout button
+    if st.button("🚪 Sair", use_container_width=True):
+        success, message = sign_out()
+        if success:
             st.rerun()
 
-        if st.button("📝 Cadastrar Métricas", use_container_width=True):
-            st.session_state.page = "data_entry"
-            st.rerun()
-
-        if st.button("⚙️ Administração", use_container_width=True):
-            st.session_state.page = "admin"
-            st.rerun()
-
-        st.markdown("---")
-
-        if st.button("🚪 Sair", use_container_width=True):
-            success, message = sign_out()
-            if success:
-                st.rerun()
-
-    if 'page' not in st.session_state:
-        st.session_state.page = "dashboard"
-
-    page = st.session_state.page
-
-    if page == "data_entry":
-        render_data_entry_page()
-    elif page == "admin":
-        render_admin_page()
+# Main content based on selected page
+if page == "📈 Dashboard":
+    st.title("📈 Dashboard de Marketing")
+    st.markdown("---")
+    
+    # Load data
+    df = load_data()
+    
+    if df.empty:
+        st.info("📊 Nenhum dado disponível. Use o menu 'Cadastrar Métricas' para adicionar dados.")
     else:
-        company_id = get_current_company_id()
+        # Display metrics and charts here
+        st.success(f"✅ {len(df)} registros carregados com sucesso!")
+        
+        # Show data preview
+        st.subheader("Prévia dos Dados")
+        st.dataframe(df, use_container_width=True)
 
-        df = load_data(company_id)
+elif page == "📝 Cadastrar Métricas":
+    render_data_entry_page()
 
-        if df.empty:
-            st.warning("⚠️ Nenhuma métrica cadastrada ainda. Use o menu 'Cadastrar Métricas' para adicionar dados.")
-        else:
-            render_header()
-
-            selected_months = render_sidebar(df)
-
-            df_filtered = filter_data(df, selected_months)
-
-            render_main_metrics(df_filtered)
-
-            render_main_alerts(df_filtered)
-
-            tabs = st.tabs([
-                "📈 Evolução",
-                "💰 Financeiro",
-                "🎯 Conversão",
-                "📊 Benchmarks",
-                "📋 Recomendações",
-                "🔮 Forecast",
-                "🤝 Parceria Contador"
-            ])
-
-            with tabs[0]:
-                render_tab_evolucao(df_filtered)
-
-            with tabs[1]:
-                render_tab_financeiro(df_filtered, BENCHMARKS)
-
-            with tabs[2]:
-                render_tab_conversao(df_filtered, BENCHMARKS)
-
-            with tabs[3]:
-                render_tab_benchmarks(df_filtered, BENCHMARKS)
-
-            with tabs[4]:
-                render_tab_recomendacoes()
-
-            with tabs[5]:
-                render_tab_forecast(df)
-
-            with tabs[6]:
-                render_tab_contador(df_filtered)
-
-            st.markdown("---")
-            st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Outubro 2025")
-
-
-
+elif page == "⚙️ Administração":
+    render_admin_page()
