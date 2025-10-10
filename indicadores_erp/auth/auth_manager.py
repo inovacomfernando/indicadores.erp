@@ -28,9 +28,8 @@ def sign_up(email: str, password: str, company_name: str):
     try:
         supabase = get_supabase_client()
 
-        admin_client = get_supabase_client()
-
-        company_response = admin_client.table('companies').insert({
+        # Criar empresa primeiro
+        company_response = supabase.table('companies').insert({
             'name': company_name
         }).execute()
 
@@ -39,6 +38,7 @@ def sign_up(email: str, password: str, company_name: str):
 
         company_id = company_response.data[0]['id']
 
+        # Criar usuário com company_id nos metadados
         response = supabase.auth.sign_up({
             "email": email,
             "password": password,
