@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from auth.auth_manager import sign_in, sign_up, init_auth_state
+from indicadores_erp.auth.supabase_client import sign_in, sign_up, init_auth_state
 
 def render_login_page():
     """Render login/signup page"""
@@ -78,3 +78,4 @@ def render_login_page():
                         st.error(message)
 
     st.markdown("</div>", unsafe_allow_html=True)
+
