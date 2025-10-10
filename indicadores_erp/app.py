@@ -9,7 +9,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from indicadores_erp.auth.auth_manager import init_auth_state, is_authenticated, sign_out, get_current_company_id
+from auth.auth_manager import init_auth_state, is_authenticated, sign_out, get_current_company_id
 from data.loader import load_data, filter_data
 from pages.login import render_login_page
 from pages.data_entry import render_data_entry_page
@@ -80,4 +80,5 @@ elif page == "📝 Cadastrar Métricas":
 
 elif page == "⚙️ Administração":
     render_admin_page()
+
 
