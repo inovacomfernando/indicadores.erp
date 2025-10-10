@@ -4,41 +4,63 @@ Carregamento e preparação de dados
 import pandas as pd
 import streamlit as st
 from datetime import datetime
+from auth.supabase_client import get_supabase_client
 
-@st.cache_data(ttl=300)  # Cache expira a cada 5 minutos (300 segundos)
-def load_data():
+@st.cache_data(ttl=300)
+def load_data(company_id: str = None):
     """
-    Carrega os dados do dashboard
-    
-    IMPORTANTE: Para forçar atualização após alterar dados:
-    - Opção 1: Pressione 'C' no dashboard e clique em "Clear cache"
-    - Opção 2: Aguarde 5 minutos (cache automático)
-    - Opção 3: Use o botão "Recarregar Dados" na sidebar (se disponível)
+    Carrega os dados do dashboard do Supabase
+
+    Args:
+        company_id: ID da empresa (obrigatório para dados filtrados)
+
+    Returns:
+        DataFrame com os dados das métricas
     """
-    data = {
-        'Mês': ['Mai/25', 'Jun/25', 'Jul/25', 'Ago/25', 'Set/25', 'Out/25', 'Nov/25', 'Dez/25'],
-        'Sessões': [5218, 5600, 5717, 7654, 8028, 2660, 0, 0],
-        'Primeira Visita': [2900, 3562, 3500, 5400, 5548, 2046, 0, 0],
-        'Leads': [270, 290, 401, 600, 604, 207, 0, 0],
-        'TC Usuários (%)': [9.32, 8.79, 11.46, 11.11, 10.89, 10.12, 0, 0],
-        'Clientes Web': [16, 15, 18, 20, 24, 4, 0, 0],
-        'TC Leads (%)': [5.93, 5.50, 4.50, 3.33, 3.97, 1.93, 0, 0],
-        'Receita Web': [2114.56, 1991.31, 2591.91, 2728.92, 3393.42, 565.60, 0, 0],
-        'Ticket Médio': [132.16, 132.75, 149.99, 136.45, 141.40, 141.40, 0, 0],
-        'Custo Meta': [2238.52, 2328.16, 2731.39, 3476.39, 3807.17, 1111.03, 0, 0],
-        'Custo Google': [2934.49, 3083.29, 3194.67, 4932.45, 6127.84, 1800.43, 0, 0],
-        'Total Ads': [5173.01, 5411.32, 5926.06, 8408.84, 9935.01, 2911.46, 0, 0],
-        'CAC': [323.31, 360.75, 329.23, 420.44, 413.96, 696.09, 0, 0],
-        'LTV': [1585.92, 1593.00, 1799.88, 1637.40, 1696.80, 1696.80, 0, 0],
-        'CAC:LTV': [4.9, 4.4, 5.5, 3.9, 4.1, 2.3, 0, 0],
-        'ROI (%)': [390.52, 341.57, 446.70, 289.45, 309.90, 133.12, 0, 0]
-    }
-    
-    # Adiciona timestamp para debug
-    df = pd.DataFrame(data)
-    df.attrs['carregado_em'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    return df
+    if not company_id:
+        return pd.DataFrame()
+
+    try:
+        supabase = get_supabase_client()
+
+        response = supabase.table('monthly_metrics')\
+            .select('*')\
+            .eq('company_id', company_id)\
+            .order('year', desc=False)\
+            .order('month_number', desc=False)\
+            .execute()
+
+        if not response.data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(response.data)
+
+        df_formatted = pd.DataFrame({
+            'Mês': df['month'],
+            'Sessões': df['sessions'],
+            'Primeira Visita': df['first_visits'],
+            'Leads': df['leads'],
+            'TC Usuários (%)': df['tc_users'],
+            'Clientes Web': df['web_clients'],
+            'TC Leads (%)': df['tc_leads'],
+            'Receita Web': df['web_revenue'],
+            'Ticket Médio': df['avg_ticket'],
+            'Custo Meta': df['meta_cost'],
+            'Custo Google': df['google_cost'],
+            'Total Ads': df['total_ads'],
+            'CAC': df['cac'],
+            'LTV': df['ltv'],
+            'CAC:LTV': df['cac_ltv_ratio'],
+            'ROI (%)': df['roi']
+        })
+
+        df_formatted.attrs['carregado_em'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        return df_formatted
+
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {str(e)}")
+        return pd.DataFrame()
 
 
 def filter_data(df, selected_months):
@@ -56,12 +78,15 @@ def get_data_info(df):
     return df.attrs.get('carregado_em', 'Desconhecido')
 
 
-def force_reload_data():
+def force_reload_data(company_id: str = None):
     """
     Força o recarregamento dos dados limpando o cache
+
+    Args:
+        company_id: ID da empresa
     """
     st.cache_data.clear()
-    return load_data()
+    return load_data(company_id)
 
 
 
