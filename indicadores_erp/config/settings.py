@@ -12,9 +12,9 @@ BENCHMARKS = {
 }
 
 PLANOS = {
-    'MEI': 69.90,
-    'Simples Nacional': 119.90,
-    'Lucro Real/Presumido': 179.90
+    'MEI': 84.90,
+    'Simples Nacional': 154.90,
+    'Lucro Real/Presumido': 199.90
 }
 
 EXTENSOES = {
@@ -38,4 +38,5 @@ PAGE_CONFIG = {
     'page_icon': "📊",
     'layout': "wide",
     'initial_sidebar_state': "expanded"
+
 }
