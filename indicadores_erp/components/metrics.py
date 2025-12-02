@@ -4,6 +4,28 @@ Cards de métricas principais
 import streamlit as st
 import numpy as np
 
+def _get_delta_explanation(delta_value, is_percentage, is_inverse):
+    """Gera uma explicação para a variação (delta) de uma métrica."""
+    if np.isnan(delta_value) or delta_value == 0:
+        return ""
+
+    unit = "%" if is_percentage else " p.p."
+    
+    # Lógica para cor normal (verde se > 0, vermelho se < 0)
+    if not is_inverse:
+        if delta_value < 0:
+            return f" A variação de {delta_value:+.1f}{unit} indica uma queda, o que é um ponto de atenção."
+        elif delta_value > 0:
+            return f" A variação de {delta_value:+.1f}{unit} indica uma melhoria."
+    # Lógica para cor inversa (vermelho se > 0, verde se < 0)
+    else:
+        if delta_value > 0:
+            return f" A variação de {delta_value:+.1f}{unit} indica um aumento, o que é um ponto de atenção."
+        elif delta_value < 0:
+            return f" A variação de {delta_value:+.1f}{unit} indica uma melhoria (redução de custo)."
+            
+    return ""
+
 def render_main_metrics(df_filtered):
     """Renderiza as 8 métricas principais"""
     
@@ -31,12 +53,14 @@ def render_main_metrics(df_filtered):
         else:
             cac_variacao = np.nan
             
+        base_help = "Custo de Aquisição por Cliente: Total de investimentos em marketing e vendas dividido pelo número de novos clientes."
+        delta_explanation = _get_delta_explanation(cac_variacao, is_percentage=True, is_inverse=True)
         st.metric(
             "CAC Médio",
             f"R$ {cac_medio:.2f}",
             f"{cac_variacao:+.1f}%" if not np.isnan(cac_variacao) else " ",
             delta_color="inverse",
-            help="Custo de Aquisição por Cliente: Total de investimentos em marketing e vendas dividido pelo número de novos clientes."
+            help=f"{base_help}{delta_explanation}"
         )
     
     with col2:
@@ -46,11 +70,13 @@ def render_main_metrics(df_filtered):
         else:
             ltv_variacao = np.nan
             
+        base_help = "Lifetime Value: Receita média que um cliente gera durante todo o seu relacionamento com a empresa."
+        delta_explanation = _get_delta_explanation(ltv_variacao, is_percentage=True, is_inverse=False)
         st.metric(
             "LTV Médio",
             f"R$ {ltv_medio:.2f}",
             f"{ltv_variacao:+.1f}%" if not np.isnan(ltv_variacao) else " ",
-            help="Lifetime Value: Receita média que um cliente gera durante todo o seu relacionamento com a empresa."
+            help=f"{base_help}{delta_explanation}"
         )
     
     with col3:
@@ -60,11 +86,13 @@ def render_main_metrics(df_filtered):
         else:
             roi_variacao = np.nan
             
+        base_help = "Retorno sobre o Investimento: Percentual de lucro ou prejuízo em relação ao que foi investido em anúncios."
+        delta_explanation = _get_delta_explanation(roi_variacao, is_percentage=False, is_inverse=False)
         st.metric(
             "ROI Médio",
             f"{roi_medio:.1f}%",
             f"{roi_variacao:+.1f} p.p." if not np.isnan(roi_variacao) else " ",
-            help="Retorno sobre o Investimento: Percentual de lucro ou prejuízo em relação ao que foi investido em anúncios."
+            help=f"{base_help}{delta_explanation}"
         )
     
     with col4:
@@ -74,12 +102,14 @@ def render_main_metrics(df_filtered):
         else:
             tc_variacao = np.nan
         
+        base_help = "Taxa de Conversão de Leads: Percentual de leads que se tornaram clientes."
+        delta_explanation = _get_delta_explanation(tc_variacao, is_percentage=False, is_inverse=False)
         st.metric(
             "TC Leads → Vendas",
             f"{tc_leads_medio:.2f}%",
             f"{tc_variacao:+.1f} p.p." if not np.isnan(tc_variacao) else " ",
             delta_color="normal",
-            help="Taxa de Conversão de Leads: Percentual de leads que se tornaram clientes."
+            help=f"{base_help}{delta_explanation}"
         )
         
     st.write("---")
@@ -95,11 +125,13 @@ def render_main_metrics(df_filtered):
         else:
             receita_variacao = np.nan
             
+        base_help = "Soma da receita gerada através dos canais web no período selecionado."
+        delta_explanation = _get_delta_explanation(receita_variacao, is_percentage=True, is_inverse=False)
         st.metric(
             "Receita Web (Total)",
             f"R$ {receita_total:,.2f}",
             f"{receita_variacao:+.1f}%" if not np.isnan(receita_variacao) else " ",
-            help="Soma da receita gerada através dos canais web no período selecionado."
+            help=f"{base_help}{delta_explanation}"
         )
         
     with col6:
@@ -110,11 +142,13 @@ def render_main_metrics(df_filtered):
         else:
             leads_variacao = np.nan
 
+        base_help = "Número total de leads gerados no período selecionado."
+        delta_explanation = _get_delta_explanation(leads_variacao, is_percentage=True, is_inverse=False)
         st.metric(
             "Leads Gerados (Total)",
             f"{int(leads_total)}",
             f"{leads_variacao:+.1f}%" if not np.isnan(leads_variacao) else " ",
-            help="Número total de leads gerados no período selecionado."
+            help=f"{base_help}{delta_explanation}"
         )
         
     with col7:
@@ -134,12 +168,14 @@ def render_main_metrics(df_filtered):
         else:
             cpl_variacao = np.nan
 
+        base_help = "Custo por Lead: Investimento total em anúncios dividido pelo número de leads gerados."
+        delta_explanation = _get_delta_explanation(cpl_variacao, is_percentage=True, is_inverse=True)
         st.metric(
             "Custo por Lead (CPL)",
             f"R$ {cpl_total:.2f}",
             f"{cpl_variacao:+.1f}%" if not np.isnan(cpl_variacao) else " ",
             delta_color="inverse",
-            help="Custo por Lead: Investimento total em anúncios dividido pelo número de leads gerados."
+            help=f"{base_help}{delta_explanation}"
         )
         
     with col8:
@@ -164,9 +200,12 @@ def render_main_metrics(df_filtered):
                 # A variação é a diferença de pontos, não percentual
                 ratio_variacao = ratio_final - ratio_inicial
             
+        base_help = f"Proporção entre LTV (R$ {ltv_medio:.2f}) e CAC (R$ {cac_medio:.2f}). Um valor > 3 é geralmente considerado saudável."
+        # Ratio não é percentual e a variação são pontos.
+        delta_explanation = _get_delta_explanation(ratio_variacao, is_percentage=False, is_inverse=False)
         st.metric(
             "LTV:CAC Ratio",
             f"{ltv_cac_ratio:.1f}:1",
             f"{ratio_variacao:+.1f}" if not np.isnan(ratio_variacao) else " ",
-            help=f"Proporção entre LTV (R$ {ltv_medio:.2f}) e CAC (R$ {cac_medio:.2f}). Um valor > 3 é geralmente considerado saudável."
+            help=f"{base_help}{delta_explanation}"
         )
