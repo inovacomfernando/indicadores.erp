@@ -146,36 +146,6 @@ def criar_grafico_funil(labels, values, colors=None, title="", height=400):
     return fig
 
 
-def criar_grafico_funil_area(labels, values, title="", height=400):
-    """
-    Cria um gráfico de funil de área.
-    
-    Args:
-        labels: Lista de labels para as etapas do funil.
-        values: Lista de valores correspondentes a cada etapa.
-        title: Título do gráfico (opcional).
-        height: Altura do gráfico (opcional).
-    
-    Returns:
-        Figura Plotly com o gráfico de funil de área.
-    """
-    fig = go.Figure(go.Funnelarea(
-        text=labels,
-        values=values,
-        # Usar uma paleta de cores gradiente
-        marker={"colors": ["#4c78a8", "#72b7b2", "#eeca66", "#f58518", "#e45756"]}
-    ))
-    
-    fig.update_layout(
-        title=dict(text=title, x=0.5, font=dict(size=18)),
-        height=height,
-        margin=dict(l=50, r=50, t=60, b=20),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-    )
-    
-    return fig
-
 
 def criar_grafico_area(df, x_col, y_col, color, title="", height=400, benchmark_line=None):
     """
