@@ -40,6 +40,7 @@ def render_tab_conversao(df_filtered, benchmarks):
             ultimo_mes['Leads'],
             ultimo_mes['Clientes Web']
         ],
+        colors=['#073763', '#3b82f6', '#8b5cf6', '#10b981'],
         height=400
     )
     st.plotly_chart(fig1, use_container_width=True)
