@@ -3,6 +3,7 @@ Componentes de header e sidebar
 """
 import streamlit as st
 from datetime import datetime
+from pathlib import Path
 
 
 def render_header():
@@ -16,15 +17,13 @@ def render_header():
 def render_sidebar(df):
     """Renderiza a sidebar com filtros e controles"""
     with st.sidebar:
-      try:
-         st.markdown(
-            f'<a href="https://vendasimples.com.br"><img src="assets/vendasimples.png" style="width: 100%;"></a>',
-            unsafe_allow_html=True
-        )
-    except:
-        st.markdown("### 📊 Dashboard Marketing")
-        
-    st.markdown("---")
+
+        # Caminho absoluto seguro para o logo
+        logo_path = Path(__file__).resolve().parent.parent / "assets" / "vendasimples.png"
+
+        st.image(str(logo_path), use_container_width=True)
+
+        st.markdown("---")
         
         # Filtros
         st.subheader("📊 Filtros")
@@ -184,3 +183,4 @@ def render_sidebar(df):
         st.caption(f"⏰ Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
         
         return selected_months
+
