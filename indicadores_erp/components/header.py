@@ -16,10 +16,14 @@ def render_header():
 def render_sidebar(df):
     """Renderiza a sidebar com filtros e controles"""
     with st.sidebar:
-        # Logo
-        st.image("https://via.placeholder.com/150x50/073763/ffffff?text=SaaS+ERP", 
-                 use_container_width=True)
-        st.markdown("---")
+    try:
+        st.markdown(
+            f'<a href="https://vendasimples.com.br"><img src="assets/vs.png" style="width: 100%;"></a>',
+            unsafe_allow_html=True
+        )
+    except:
+        st.markdown("### 📊 Dashboard Marketing")
+    st.markdown("---")
         
         # Filtros
         st.subheader("📊 Filtros")
@@ -179,3 +183,4 @@ def render_sidebar(df):
         st.caption(f"⏰ Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
         
         return selected_months
+
