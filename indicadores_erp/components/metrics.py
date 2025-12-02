@@ -15,12 +15,15 @@ def render_main_metrics(df_filtered):
         st.warning("Nenhum dado disponível para o período selecionado.")
         return
 
+    # --- Cálculos prévios ---
+    cac_medio = df_filtered['CAC'].mean()
+    ltv_medio = df_filtered['LTV'].mean()
+
     st.subheader("Indicadores Gerais de Negócio")
     col1, col2, col3, col4 = st.columns(4)
     
     # --- Linha 1: CAC, LTV, ROI, TC Leads ---
     with col1:
-        cac_medio = df_filtered['CAC'].mean()
         # Evitar erro se houver apenas um mês selecionado
         if len(df_filtered) > 1:
             cac_variacao = ((df_filtered['CAC'].iloc[-1] - df_filtered['CAC'].iloc[0]) / 
@@ -37,7 +40,6 @@ def render_main_metrics(df_filtered):
         )
     
     with col2:
-        ltv_medio = df_filtered['LTV'].mean()
         if len(df_filtered) > 1:
             ltv_variacao = ((df_filtered['LTV'].iloc[-1] - df_filtered['LTV'].iloc[0]) / 
                             df_filtered['LTV'].iloc[0] * 100) if df_filtered['LTV'].iloc[0] != 0 else np.nan
@@ -141,28 +143,30 @@ def render_main_metrics(df_filtered):
         )
         
     with col8:
-        # Recalcula a proporção com base nas médias do período
-        if df_filtered['LTV'].mean() > 0:
-            ratio_cac_ltv = df_filtered['CAC'].mean() / df_filtered['LTV'].mean()
-        else:
-            ratio_cac_ltv = 0
-        
-        # A métrica é LTV:CAC, então invertemos
-        if ratio_cac_ltv > 0:
-            ltv_cac_ratio = 1 / ratio_cac_ltv
+        # A métrica é LTV:CAC
+        if cac_medio > 0:
+            ltv_cac_ratio = ltv_medio / cac_medio
         else:
             ltv_cac_ratio = 0
 
-        # Variação do Ratio
+        # Variação do Ratio (LTV/CAC)
         df_ratio = df_filtered.copy()
+        # Evitar divisão por zero
+        df_ratio['LTV_CAC'] = (df_ratio['LTV'] / df_ratio['CAC']).replace([np.inf, -np.inf], np.nan)
+        
+        ratio_variacao = np.nan
         if len(df_ratio) > 1:
-            ratio_variacao = (df_ratio['CAC:LTV'].iloc[-1] - df_ratio['CAC:LTV'].iloc[0])
-        else:
-            ratio_variacao = np.nan
+            # Pega o primeiro e último valor válido para calcular a variação
+            series_ratio = df_ratio['LTV_CAC'].dropna()
+            if len(series_ratio) > 1:
+                ratio_inicial = series_ratio.iloc[0]
+                ratio_final = series_ratio.iloc[-1]
+                # A variação é a diferença de pontos, não percentual
+                ratio_variacao = ratio_final - ratio_inicial
             
         st.metric(
             "LTV:CAC Ratio",
             f"{ltv_cac_ratio:.1f}:1",
             f"{ratio_variacao:+.1f}" if not np.isnan(ratio_variacao) else " ",
-            help="Proporção entre LTV e CAC. Um valor > 3 é geralmente considerado saudável."
+            help=f"Proporção entre LTV (R$ {ltv_medio:.2f}) e CAC (R$ {cac_medio:.2f}). Um valor > 3 é geralmente considerado saudável."
         )
