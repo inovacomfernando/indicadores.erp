@@ -163,8 +163,7 @@ def criar_grafico_funil_area(labels, values, title="", height=400):
         text=labels,
         values=values,
         # Usar uma paleta de cores gradiente
-        marker={"colors": ["#4c78a8", "#72b7b2", "#eeca66", "#f58518", "#e45756"]},
-        textinfo="value+percent initial"
+        marker={"colors": ["#4c78a8", "#72b7b2", "#eeca66", "#f58518", "#e45756"]}
     ))
     
     fig.update_layout(
