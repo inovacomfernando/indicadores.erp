@@ -116,31 +116,59 @@ def criar_grafico_barras_com_texto(df, x_col, y_col, color, title="", height=400
 
 def criar_grafico_funil(labels, values, colors=None, title="", height=400):
     """
-    Cria um gráfico de funil
+    Cria um gráfico de funil com um visual mais moderno e informativo.
     
     Args:
-        labels: Lista de labels
-        values: Lista de valores
-        colors: Lista de cores (opcional)
-        title: Título do gráfico
-        height: Altura do gráfico
+        labels: Lista de labels para as etapas do funil.
+        values: Lista de valores correspondentes a cada etapa.
+        colors: Lista de cores para as barras do funil (opcional).
+        title: Título do gráfico (opcional).
+        height: Altura do gráfico (opcional).
     
     Returns:
-        Figura Plotly
+        Figura Plotly com o gráfico de funil.
     """
     if colors is None:
-        colors = ['#073763', '#3b82f6', '#8b5cf6', '#10b981']
-    
+        # Paleta de cores moderna e profissional
+        colors = ['#264653', '#2a9d8f', '#e9c46a', '#f4a261', '#e76f51']
+
+    # Calcula as porcentagens de conversão entre as etapas para exibição
+    text_values = []
+    for i in range(len(values)):
+        value_str = f"{int(values[i]):,}".replace(",", ".")
+        # A primeira etapa é a base (100%)
+        if i == 0:
+            text_values.append(f"{value_str} (100%)")
+        # Para as demais, calcula a % em relação à etapa anterior
+        else:
+            if values[i-1] > 0:
+                percent_vs_previous = (values[i] / values[i-1]) * 100
+                text_values.append(f"{value_str} ({percent_vs_previous:.1f}%)")
+            else:
+                # Caso a etapa anterior seja 0, a conversão é 0%
+                text_values.append(f"{value_str} (0%)")
+
     fig = go.Figure(go.Funnel(
-        y=labels,
+        y=[f"<b>{label}</b>" for label in labels], # Labels em negrito
         x=values,
-        textinfo="value+percent initial",
-        marker=dict(color=colors)
+        text=text_values,
+        textinfo="text", # Usa o array de texto customizado
+        textfont=dict(size=14, color='white'),
+        marker=dict(
+            color=colors,
+            line=dict(width=0) # Remove as bordas das barras
+        ),
+        connector={"line": {"color": "rgba(0, 0, 0, 0.4)", "dash": "dot", "width": 2}},
+        opacity=0.9,
     ))
     
     fig.update_layout(
-        title=title,
-        height=height
+        title=dict(text=title, x=0.5, font=dict(size=20, color='#333')),
+        height=height,
+        margin=dict(l=150, r=50, t=60, b=20), # Margem esquerda maior para os labels
+        plot_bgcolor='rgba(255, 255, 255, 0)', # Fundo transparente
+        paper_bgcolor='rgba(255, 255, 255, 0)',
+        font=dict(family="Arial, sans-serif", size=12, color="#333"),
     )
     
     return fig
