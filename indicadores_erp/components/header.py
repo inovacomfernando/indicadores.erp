@@ -22,6 +22,7 @@ def render_sidebar(df):
     """Renderiza a sidebar com filtros e controles"""
     with st.sidebar:
 
+        # Logo
         st.image("assets/vendasimples.png", use_container_width=True)
 
         st.markdown("---")
@@ -34,7 +35,6 @@ def render_sidebar(df):
             default=df['Mês'].tolist()
         )
 
-        # Controle de Dados
         st.markdown("---")
         st.subheader("🔄 Controle de Dados")
 
@@ -116,6 +116,7 @@ def render_sidebar(df):
                 💡 **Regra:** Dados são apurados no
                 primeiro dia útil do mês seguinte.
                 """)
+
         except ImportError:
             pass
 
@@ -154,10 +155,10 @@ def render_sidebar(df):
                 with col2:
                     total_leads = df_valid['Leads'].sum()
                     st.metric("Total de Leads", total_leads)
-                    )
 
-        # Indicador de saúde geral
+                # Indicador de saúde (ROI médio)
                 roi_medio = df_valid['ROI (%)'].mean()
+
                 if roi_medio > 300:
                     status = "🟢 Excelente"
                     cor = "#00d4aa"
@@ -167,7 +168,7 @@ def render_sidebar(df):
                 else:
                     status = "🔴 Atenção"
                     cor = "#ff4757"
-                
+
                 st.markdown(f"""
                 <div style="
                     background: {cor}20; 
@@ -180,11 +181,13 @@ def render_sidebar(df):
                     <small>ROI médio: {roi_medio:.1f}%</small>
                 </div>
                 """, unsafe_allow_html=True)
-        
+
         # Footer
         st.markdown("---")
         st.caption("🔧 Desenvolvido para análise estratégica de marketing")
         st.caption(f"⏰ Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-        
+
         return selected_months
+
                     
+
