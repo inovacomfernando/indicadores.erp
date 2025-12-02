@@ -154,4 +154,37 @@ def render_sidebar(df):
                 with col2:
                     total_leads = df_valid['Leads'].sum()
                     st.metric("Total de Leads", total_leads)
+                    )
 
+        # Indicador de saúde geral
+                roi_medio = df_valid['ROI (%)'].mean()
+                if roi_medio > 300:
+                    status = "🟢 Excelente"
+                    cor = "#00d4aa"
+                elif roi_medio > 200:
+                    status = "🟡 Bom"
+                    cor = "#ffa502"
+                else:
+                    status = "🔴 Atenção"
+                    cor = "#ff4757"
+                
+                st.markdown(f"""
+                <div style="
+                    background: {cor}20; 
+                    border-left: 3px solid {cor}; 
+                    padding: 10px; 
+                    border-radius: 5px;
+                    margin-top: 10px;
+                ">
+                    <strong>{status}</strong><br>
+                    <small>ROI médio: {roi_medio:.1f}%</small>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Footer
+        st.markdown("---")
+        st.caption("🔧 Desenvolvido para análise estratégica de marketing")
+        st.caption(f"⏰ Atualizado: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        
+        return selected_months
+                    
