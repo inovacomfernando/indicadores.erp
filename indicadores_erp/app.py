@@ -82,4 +82,5 @@ with tabs[6]:
 
 # Footer
 st.markdown("---")
-st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Outubro 2025")
+st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Dezembro 2025")
+
