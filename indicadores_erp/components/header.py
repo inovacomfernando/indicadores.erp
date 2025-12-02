@@ -5,6 +5,7 @@ import streamlit as st
 from datetime import datetime
 
 
+
 def render_header():
     """Renderiza o header principal"""
     st.markdown(
@@ -21,14 +22,7 @@ def render_sidebar(df):
     """Renderiza a sidebar com filtros e controles"""
     with st.sidebar:
 
-        # Logo clicável
-        try:
-            st.markdown(
-                '<a href="https://vendasimples.com.br"><img src="assets/vendasimples.png" style="width: 100%;"></a>',
-                unsafe_allow_html=True
-            )
-        except:
-            st.markdown("### 📊 Dashboard Marketing")
+        st.image("assets/vendasimples.png", use_container_width=True)
 
         st.markdown("---")
 
@@ -160,3 +154,4 @@ def render_sidebar(df):
                 with col2:
                     total_leads = df_valid['Leads'].sum()
                     st.metric("Total de Leads", total_leads)
+
