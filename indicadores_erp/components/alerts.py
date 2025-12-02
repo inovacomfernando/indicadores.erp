@@ -149,22 +149,31 @@ def calculate_metrics_health(df):
 
 def render_main_alerts(df):
     """
-    Renderiza os alertas principais baseados nos dados reais
+    Renderiza os alertas principais com um visual moderno e baseado nos dados reais.
     Args:
-        df: DataFrame com os dados do loader
+        df: DataFrame com os dados do loader.
     """
     alerts = calculate_metrics_health(df)
     
+    # --- Template Base para os Alertas ---
+    alert_template = """
+    <div class="alert-box" style="background-color: #262730; border-left: 6px solid {border_color}; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="color: {border_color}; margin-top: 0; font-weight: 600;">{icon} {title}</h4>
+        {content}
+        <p style="color: #95a5a6; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
+            <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
+        </p>
+    </div>
+    """
+
     if not alerts:
-        st.markdown("""
-        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #00d4aa; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="color: #00d4aa; margin-top: 0;">✅ Métricas Saudáveis</h4>
-            <p style="color: #e0e0e0; margin-bottom: 10px;">Nenhum ponto crítico de atenção identificado no momento.</p>
-            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0;">
-                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        content = '<p style="color: #bdc3c7; margin-bottom: 10px;">Nenhum ponto crítico de atenção identificado no momento.</p>'
+        st.markdown(alert_template.format(
+            border_color="#2ecc71",
+            icon="✅",
+            title="Métricas Saudáveis",
+            content=content
+        ), unsafe_allow_html=True)
         return
     
     # Separa alertas por severidade
@@ -174,54 +183,45 @@ def render_main_alerts(df):
     
     # Renderiza alertas de alta severidade
     if high_alerts:
-        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
+        alerts_html = "<ul style='color: #bdc3c7; margin-bottom: 10px; padding-left: 20px;'>"
         for alert in high_alerts:
-            alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
+            alerts_html += f"<li><strong>{alert['icon']} {alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
         
-        st.markdown(f"""
-        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #ff4757; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="color: #ff4757; margin-top: 0;">🚨 Pontos Críticos de Atenção</h4>
-            {alerts_html}
-            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
-                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
+        st.markdown(alert_template.format(
+            border_color="#e74c3c",
+            icon="🚨",
+            title="Pontos Críticos de Atenção",
+            content=alerts_html
+        ), unsafe_allow_html=True)
+
     # Renderiza alertas de média severidade
     if medium_alerts:
-        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
+        alerts_html = "<ul style='color: #bdc3c7; margin-bottom: 10px; padding-left: 20px;'>"
         for alert in medium_alerts:
-            alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
+            alerts_html += f"<li><strong>{alert['icon']} {alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
         
-        st.markdown(f"""
-        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #ffa502; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="color: #ffa502; margin-top: 0;">⚠️ Pontos de Monitoramento</h4>
-            {alerts_html}
-            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
-                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Renderiza alertas de baixa severidade (se houver)
+        st.markdown(alert_template.format(
+            border_color="#f39c12",
+            icon="⚠️",
+            title="Pontos de Monitoramento",
+            content=alerts_html
+        ), unsafe_allow_html=True)
+
+    # Renderiza alertas de baixa severidade
     if low_alerts:
-        alerts_html = "<ul style='color: #e0e0e0; margin-bottom: 10px;'>"
+        alerts_html = "<ul style='color: #bdc3c7; margin-bottom: 10px; padding-left: 20px;'>"
         for alert in low_alerts:
-            alerts_html += f"<li><strong>{alert['title']}:</strong> {alert['message']}</li>"
+            alerts_html += f"<li><strong>{alert['icon']} {alert['title']}:</strong> {alert['message']}</li>"
         alerts_html += "</ul>"
-        
-        st.markdown(f"""
-        <div class="alert-box" style="background: #1a1a2e; border-left: 5px solid #5352ed; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-            <h4 style="color: #5352ed; margin-top: 0;">ℹ️ Observações</h4>
-            {alerts_html}
-            <p style="color: #a0a0a0; font-size: 0.85em; margin-bottom: 0; margin-top: 15px;">
-                <em>📅 Os resultados são atualizados automaticamente e apurados no primeiro dia útil do próximo mês.</em>
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+
+        st.markdown(alert_template.format(
+            border_color="#3498db",
+            icon="ℹ️",
+            title="Observações",
+            content=alerts_html
+        ), unsafe_allow_html=True)
 
 def render_insights(df):
     """
