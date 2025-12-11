@@ -105,6 +105,19 @@ def render_tab_resultados(df_filtered, benchmarks):
     cols2[2].metric("LTV Médio", f"R$ {avg_ltv:,.2f}")
     cols2[3].metric("Ticket Médio", f"R$ {avg_ticket:,.2f}")
 
+    # Indicador de Receita Potencial com base nos Leads
+    st.markdown("---")
+    st.markdown("#### 🔮 Projeção de Receita Potencial (Baseado em Leads)")
+    if total_leads > 0 and avg_ticket > 0:
+        receita_potencial_leads = total_leads * avg_ticket
+        st.metric(
+            label="Receita Potencial (se todos os leads se tornassem clientes)",
+            value=f"R$ {receita_potencial_leads:,.2f}",
+            help=f"Este valor representa a receita que seria gerada se todos os {total_leads:,.0f} leads tivessem convertido com o ticket médio de R$ {avg_ticket:,.2f}."
+        )
+    else:
+        st.info("Não há dados suficientes (leads ou ticket médio) para calcular a receita potencial.")
+
     # Indicador de projeção de receita, conforme solicitado
     if total_receita > 0 and avg_cac_ltv > 0:
         st.markdown("---")
@@ -115,6 +128,76 @@ def render_tab_resultados(df_filtered, benchmarks):
             help=f"Projeção baseada na receita do período multiplicada pelo índice LTV:CAC. "
                  f"Cálculo: R$ {total_receita:,.2f} (Receita) × {avg_cac_ltv:.2f} (Índice) = R$ {projecao_receita_ltv:,.2f}."
         )
+
+    # --- Simulador de Aumento de Verba em Ads ---
+    st.markdown("---")
+    st.markdown("#### 🔬 Simulador de Viabilidade de Aumento de Verba em Ads")
+    st.info("Use os controles para simular o impacto de um aumento no investimento em anúncios e uma possível melhoria na conversão.")
+
+    # Dados base para o simulador
+    cpl_medio = total_ads / total_leads if total_leads > 0 else 0
+    taxa_conversao_atual = total_clientes / total_leads if total_leads > 0 else 0
+
+    if cpl_medio > 0 and taxa_conversao_atual > 0:
+        sim_cols = st.columns(2)
+        with sim_cols[0]:
+            aumento_verba_percent = st.slider(
+                "Aumento na Verba de Ads (%)",
+                min_value=10,
+                max_value=200,
+                value=50,
+                step=10,
+                help="Selecione o aumento percentual no investimento em Ads."
+            )
+        with sim_cols[1]:
+            impacto_conversao_percent = st.slider(
+                "Melhoria na Taxa de Conversão (%)",
+                min_value=0,
+                max_value=50,
+                value=5,
+                step=1,
+                help="Estime o impacto do aumento da verba na taxa de conversão de lead para cliente. Isso pode ocorrer por um público mais qualificado ou otimização de campanha."
+            )
+
+        # Cálculos do cenário simulado
+        aumento_verba_valor = total_ads * (aumento_verba_percent / 100)
+        nova_verba_ads = total_ads + aumento_verba_valor
+        
+        # Assumimos que o Custo por Lead (CPL) se mantém constante para a simulação
+        novos_leads_esperados = nova_verba_ads / cpl_medio
+        
+        # Calcula a nova taxa de conversão com a melhoria estimada
+        nova_taxa_conversao = taxa_conversao_atual * (1 + impacto_conversao_percent / 100)
+        novos_clientes_esperados = novos_leads_esperados * nova_taxa_conversao
+        
+        # A nova receita é baseada nos novos clientes e no ticket médio do período
+        nova_receita_esperada = novos_clientes_esperados * avg_ticket
+        novo_roi = (nova_receita_esperada - nova_verba_ads) / nova_verba_ads * 100 if nova_verba_ads > 0 else 0
+
+        st.markdown("##### **Resultados da Simulação**")
+        res_cols = st.columns(4)
+        res_cols[0].metric("Nova Verba de Ads", f"R$ {nova_verba_ads:,.2f}", f"+{aumento_verba_percent}%")
+        res_cols[1].metric("Novos Leads Esperados", f"{novos_leads_esperados:,.0f}", f"CPL de R$ {cpl_medio:,.2f}")
+        res_cols[2].metric("Novos Clientes Esperados", f"{novos_clientes_esperados:,.0f}", f"Conv. de {(nova_taxa_conversao*100):.2f}%")
+        res_cols[3].metric("Nova Receita Esperada", f"R$ {nova_receita_esperada:,.2f}", f"ROI de {novo_roi:.2f}%")
+        
+        with st.expander("Ver detalhes do cálculo da simulação"):
+            st.markdown(f"""
+            - **Verba de Ads Atual:** R$ {total_ads:,.2f}
+            - **Aumento Selecionado:** {aumento_verba_percent}% (R$ {aumento_verba_valor:,.2f})
+            - **Nova Verba Total:** R$ {nova_verba_ads:,.2f}
+            - **Custo por Lead (CPL) Médio do Período:** R$ {cpl_medio:,.2f} (assumido como constante)
+            - **Leads Esperados com a Nova Verba:** `{nova_verba_ads:,.2f} / {cpl_medio:,.2f} = {novos_leads_esperados:,.0f}`
+            - **Taxa de Conversão Atual:** `({total_clientes} / {total_leads}) = {(taxa_conversao_atual * 100):.2f}%`
+            - **Melhoria na Conversão Selecionada:** {impacto_conversao_percent}%
+            - **Nova Taxa de Conversão Projetada:** `{(taxa_conversao_atual * 100):.2f}% * (1 + {impacto_conversao_percent / 100}) = {(nova_taxa_conversao * 100):.2f}%`
+            - **Clientes Esperados com a Nova Conversão:** `{novos_leads_esperados:,.0f} * {(nova_taxa_conversao * 100):.2f}% = {novos_clientes_esperados:,.0f}`
+            - **Ticket Médio do Período:** R$ {avg_ticket:,.2f} (assumido como constante)
+            - **Receita Total Projetada:** `{novos_clientes_esperados:,.0f} * R$ {avg_ticket:,.2f} = R$ {nova_receita_esperada:,.2f}`
+            - **ROI Projetado:** `(R$ {nova_receita_esperada:,.2f} - R$ {nova_verba_ads:,.2f}) / R$ {nova_verba_ads:,.2f} = {novo_roi:.2f}%`
+            """)
+    else:
+        st.warning("Dados insuficientes para o simulador (custo por lead ou taxa de conversão zerados no período).")
 
     # --- 2. Comparativo Mensal ---
     st.markdown("---")
