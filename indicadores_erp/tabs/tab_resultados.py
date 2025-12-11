@@ -108,12 +108,12 @@ def render_tab_resultados(df_filtered, benchmarks):
     # Indicador de projeção de receita, conforme solicitado
     if total_receita > 0 and avg_cac_ltv > 0:
         st.markdown("---")
-        receita_projetada = total_receita * avg_cac_ltv
+        projecao_receita_ltv = total_receita * avg_cac_ltv
         st.metric(
             label="Receita Projetada (Receita Atual × LTV:CAC)",
-            value=f"R$ {receita_projetada:,.2f}",
+            value=f"R$ {projecao_receita_ltv:,.2f}",
             help=f"Projeção baseada na receita do período multiplicada pelo índice LTV:CAC. "
-                 f"Cálculo: R$ {total_receita:,.2f} (Receita) × {avg_cac_ltv:.2f} (Índice) = R$ {receita_projetada:,.2f}."
+                 f"Cálculo: R$ {total_receita:,.2f} (Receita) × {avg_cac_ltv:.2f} (Índice) = R$ {projecao_receita_ltv:,.2f}."
         )
 
     # --- 2. Comparativo Mensal ---
