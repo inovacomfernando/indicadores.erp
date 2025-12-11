@@ -83,7 +83,7 @@ with tabs[6]:
     render_tab_contador(df_filtered)
 
 with tabs[7]:
-    render_tab_resultados(df_filtered)
+    render_tab_resultados(df_filtered, BENCHMARKS)
 
 # Footer
 st.markdown("---")
