@@ -105,6 +105,17 @@ def render_tab_resultados(df_filtered, benchmarks):
     cols2[2].metric("LTV Médio", f"R$ {avg_ltv:,.2f}")
     cols2[3].metric("Ticket Médio", f"R$ {avg_ticket:,.2f}")
 
+    # Indicador de projeção de receita, conforme solicitado
+    if total_receita > 0 and avg_cac_ltv > 0:
+        st.markdown("---")
+        receita_projetada = total_receita * avg_cac_ltv
+        st.metric(
+            label="Receita Projetada (Receita Atual × LTV:CAC)",
+            value=f"R$ {receita_projetada:,.2f}",
+            help=f"Projeção baseada na receita do período multiplicada pelo índice LTV:CAC. "
+                 f"Cálculo: R$ {total_receita:,.2f} (Receita) × {avg_cac_ltv:.2f} (Índice) = R$ {receita_projetada:,.2f}."
+        )
+
     # --- 2. Comparativo Mensal ---
     st.markdown("---")
     st.markdown("#### 🆚 Avanço Mensal (Comparativo)")
