@@ -20,6 +20,7 @@ from tabs.tab_benchmarks import render_tab_benchmarks
 from tabs.tab_recomendacoes import render_tab_recomendacoes
 from tabs.tab_forecast import render_tab_forecast
 from tabs.tab_contador import render_tab_contador
+from tabs.tab_resultados import render_tab_resultados
 
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
@@ -56,7 +57,8 @@ tabs = st.tabs([
     "📊 Benchmarks", 
     "📋 Recomendações", 
     "🔮 Forecast",
-    "🤝 Parceria Contador"
+    "🤝 Parceria Contador",
+    "📄 Resultados"
 ])
 
 with tabs[0]:
@@ -79,6 +81,9 @@ with tabs[5]:
 
 with tabs[6]:
     render_tab_contador(df_filtered)
+
+with tabs[7]:
+    render_tab_resultados(df_filtered)
 
 # Footer
 st.markdown("---")
