@@ -9,18 +9,13 @@ from utils.calculations import calcular_roi
 
 def clean_numeric_column(series: pd.Series) -> pd.Series:
     """
-    Limpa coluna numérica, lidando tanto com formato BR (2.114,56)
-    quanto com formato US (2114.56), sem multiplicar valores por 100.
+    Limpa coluna numérica sem alterar escala.
+
+    - Remove apenas símbolos (R$, espaço, %).
+    - NÃO remove ponto decimal e NÃO insere vírgula.
+    - Confia no valor que vem do Excel (que já está como número ou string '2114.56').
     """
     s = series.astype(str).str.replace(r"[R$\s%]", "", regex=True)
-
-    # Se existir vírgula em algum valor, assumimos formato BR (milhar . e decimal ,)
-    if s.str.contains(",", regex=False).any():
-        s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
-        # agora 2.114,56 -> 2114.56
-    # Se não houver vírgula, assumimos que o ponto já é decimal (formato US)
-    # e NÃO removemos o ponto.
-
     return pd.to_numeric(s, errors="coerce")
 
 
@@ -56,7 +51,7 @@ def gerar_insights_executivos_saas(resumo: dict) -> list[str]:
     ltv_medio = resumo.get("ltv_medio")
     ticket_medio = resumo.get("ticket_medio")
 
-    # Multiplo de retorno em 12 meses
+    # Múltiplo de retorno em 12 meses
     if invest_total > 0 and retorno_12m is not None:
         multiplo = retorno_12m / invest_total
         insights.append(
@@ -161,15 +156,11 @@ def render_tab_roi_receita(df_principal=None):
         "Envie a planilha de ROI diluído com a estrutura:\n\n"
         "- Mês\n"
         "- Receita web\n"
-        "- Total Ads\n\n"
-        "A partir disso, o sistema calcula:\n"
-        "- ROI simples por mês (Receita web x Total Ads)\n"
-        "- ROI diluído por coorte de investimento (1º ao 12º mês), seguindo a fórmula:\n"
+        "- Total Ads\n"
+        "As colunas 1º MÊS, 2º MÊS etc. da planilha serão ignoradas para o cálculo,\n"
+        "pois o ROI diluído será recalculado internamente pela fórmula:\n"
         "  - ROI_1 = Receita - Investimento\n"
-        "  - ROI_n = ROI_{n-1} + Receita (acumulado mês a mês)\n"
-        "- Payback médio, mediano e % de coortes com payback ≤ 6 meses\n"
-        "- Mapa de calor de coortes x meses relativos\n"
-        "- Resumo executivo em linguagem de negócio (SaaS ERP)."
+        "  - ROI_n = ROI_{n-1} + Receita\n"
     )
 
     uploaded_file = st.file_uploader(
@@ -199,7 +190,7 @@ def render_tab_roi_receita(df_principal=None):
         df = df_raw.iloc[2:].copy()  # dados começam depois da linha de cabeçalho real
         df.columns = header_row
 
-        # Remover colunas com nomes duplicados (ex.: duas colunas '8º MÊS')
+        # Remover colunas com nomes duplicados
         df = df.loc[:, ~df.columns.astype(str).duplicated()].copy()
 
         # Normalizar nomes de colunas: remover espaços, tratar NaN/vazios
