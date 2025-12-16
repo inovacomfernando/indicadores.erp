@@ -10,14 +10,36 @@ from sklearn.decomposition import PCA
 @st.cache_data
 def intelligent_load_and_clean(file):
     """
-    Carrega dados de um arquivo e realiza uma limpeza de tipos inteligente.
+    Carrega dados de um arquivo, encontra o cabeçalho correto e realiza uma limpeza de tipos inteligente.
     """
-    df = pd.read_csv(file, encoding='utf-8', sep=None, engine='python') if file.name.endswith('.csv') else pd.read_excel(file)
+    df = None
+    if file.name.lower().endswith(('.xlsx', '.xls')):
+        # Pré-scan para encontrar o cabeçalho em arquivos Excel
+        df_raw = pd.read_excel(file, header=None, sheet_name=0)
+        header_row_index = 0
+        for i, row in df_raw.head(10).iterrows():
+            # Heurística: a linha de cabeçalho tem muitas entradas não nulas e não é majoritariamente numérica
+            if row.notna().sum() / df_raw.shape[1] > 0.5:
+                # Tenta converter a linha para numérico, se a maioria falhar, é um bom candidato a cabeçalho
+                numeric_count = pd.to_numeric(row, errors='coerce').notna().sum()
+                if numeric_count / row.notna().sum() < 0.5:
+                    header_row_index = i
+                    break
+        # Carrega o arquivo de verdade com o cabeçalho encontrado
+        df = pd.read_excel(file, header=header_row_index, sheet_name=0)
+    else:
+        # Para CSVs, uma abordagem mais simples por enquanto
+        df = pd.read_csv(file, encoding='utf-8', sep=None, engine='python')
+
+    # Limpeza de colunas e linhas
+    df.dropna(axis='columns', how='all', inplace=True) # Remove colunas totalmente vazias
+    df.dropna(axis='rows', how='all', inplace=True)    # Remove linhas totalmente vazias
+    df.reset_index(drop=True, inplace=True)
 
     # Tenta converter colunas para numéricas de forma agressiva
     for col in df.columns:
-        # Tenta converter para numérico. Se a coluna já for numérica ou data, ignora.
         if df[col].dtype == 'object':
+            # Converte para numérico, o que não for número vira NaN, depois preenche de volta com o original
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(df[col])
     
     return df
