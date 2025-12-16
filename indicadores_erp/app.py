@@ -88,7 +88,7 @@ with tabs[7]:
     render_tab_resultados(df_filtered, BENCHMARKS)
 
 with tabs[8]:
-    render_tab_roi_receita()
+    render_tab_roi_receita(df_filtered)
 
 # Footer
 st.markdown("---")
