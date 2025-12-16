@@ -1,11 +1,6 @@
 import streamlit as st
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.decomposition import PCA
+import re
 
 @st.cache_data
 def intelligent_load_and_clean(file):
@@ -14,144 +9,98 @@ def intelligent_load_and_clean(file):
     """
     df = None
     if file.name.lower().endswith(('.xlsx', '.xls')):
-        # Pré-scan para encontrar o cabeçalho em arquivos Excel
         df_raw = pd.read_excel(file, header=None, sheet_name=0)
         header_row_index = 0
         for i, row in df_raw.head(10).iterrows():
-            # Heurística: a linha de cabeçalho tem muitas entradas não nulas e não é majoritariamente numérica
             if row.notna().sum() / df_raw.shape[1] > 0.5:
-                # Tenta converter a linha para numérico, se a maioria falhar, é um bom candidato a cabeçalho
                 numeric_count = pd.to_numeric(row, errors='coerce').notna().sum()
                 if numeric_count / row.notna().sum() < 0.5:
                     header_row_index = i
                     break
-        # Carrega o arquivo de verdade com o cabeçalho encontrado
         df = pd.read_excel(file, header=header_row_index, sheet_name=0)
     else:
-        # Para CSVs, uma abordagem mais simples por enquanto
         df = pd.read_csv(file, encoding='utf-8', sep=None, engine='python')
 
-    # Limpeza de colunas e linhas
-    df.dropna(axis='columns', how='all', inplace=True) # Remove colunas totalmente vazias
-    df.dropna(axis='rows', how='all', inplace=True)    # Remove linhas totalmente vazias
+    df.dropna(axis='columns', how='all', inplace=True)
+    df.dropna(axis='rows', how='all', inplace=True)
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')] # Remove colunas 'Unnamed'
     df.reset_index(drop=True, inplace=True)
-
-    # Tenta converter colunas para numéricas de forma agressiva
-    for col in df.columns:
-        if df[col].dtype == 'object':
-            # Converte para numérico, o que não for número vira NaN, depois preenche de volta com o original
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(df[col])
     
     return df
 
 @st.cache_data
-def engineer_dates_and_identify_types(df: pd.DataFrame):
+def run_cohort_analysis(df: pd.DataFrame):
     """
-    Converte datas, cria features a partir delas e identifica os tipos de colunas para a análise.
+    Transforma o DataFrame em um formato de coorte e calcula o ROI mensal e acumulado.
     """
-    df_engineered = df.copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    # A primeira coluna é a safra (cohort)
+    cohort_col = df.columns[0]
+    df.rename(columns={cohort_col: 'safra'}, inplace=True)
     
-    original_datetime_features = []
-    for col in df_engineered.select_dtypes(include=['object']).columns:
-        try:
-            df_engineered[col] = pd.to_datetime(df_engineered[col], errors='raise', format='mixed')
-            original_datetime_features.append(col)
-        except (ValueError, TypeError):
-            continue
-
-    for col in original_datetime_features:
-        df_engineered[f'{col}_Ano'] = df_engineered[col].dt.year
-        df_engineered[f'{col}_Mês'] = df_engineered[col].dt.month
-        df_engineered[f'{col}_Dia'] = df_engineered[col].dt.day
-        df_engineered[f'{col}_DiaDaSemana'] = df_engineered[col].dt.dayofweek
-
-    numeric_features = df_engineered.select_dtypes(include=['int64', 'float64']).columns
-    categorical_features = df_engineered.select_dtypes(include=['object', 'category']).columns
-
-    for col in list(numeric_features) + list(categorical_features):
-        if df_engineered[col].nunique() <= 1:
-            if col in numeric_features:
-                numeric_features = numeric_features.drop(col)
-            if col in categorical_features:
-                categorical_features = categorical_features.drop(col)
-
-    return df_engineered, list(numeric_features), list(categorical_features), original_datetime_features
-
-@st.cache_data
-def run_analysis(df: pd.DataFrame, numeric_features: list, categorical_features: list):
-    """
-    Executa o pipeline de clustering e PCA.
-    """
-    numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', StandardScaler())])
-
-    categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))])
-
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numeric_transformer, numeric_features),
-            ('cat', categorical_transformer, categorical_features)],
-        remainder='drop')
-
-    pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                               ('cluster', KMeans(n_clusters=4, n_init='auto', random_state=42))])
+    # Derreter o dataframe para o formato longo
+    df_long = df.melt(id_vars='safra', var_name='mes', value_name='valor_roi')
     
-    pipeline.fit(df)
-    cluster_labels = pipeline.named_steps['cluster'].labels_
-
-    processed_data = pipeline.named_steps['preprocessor'].transform(df)
-    pca = PCA(n_components=2, random_state=42)
-    pca_result = pca.fit_transform(processed_data)
-
-    return cluster_labels, pca_result
+    # Limpeza e conversão de tipos
+    # Extrai o número do mês (ex: de 'Mês 1' para 1)
+    df_long['mes_num'] = df_long['mes'].astype(str).str.extract(r'(\d+)').fillna(0).astype(int)
+    
+    # Limpa a coluna de valor (remove 'R$', espaços, e converte para float)
+    if df_long['valor_roi'].dtype == 'object':
+        df_long['valor_roi'] = df_long['valor_roi'].astype(str).str.replace(r'[R$\s]', '', regex=True)
+        df_long['valor_roi'] = df_long['valor_roi'].str.replace(',', '.').astype(float)
+    
+    df_long.dropna(subset=['valor_roi'], inplace=True)
+    df_long.sort_values(by=['safra', 'mes_num'], inplace=True)
+    
+    # Calcula o ROI acumulado para cada safra
+    df_long['roi_acumulado'] = df_long.groupby('safra')['valor_roi'].cumsum()
+    
+    return df_long
 
 def render_tab_roi_receita():
-    st.header("Análise Semi-Automática de Clusters")
-    st.write("Faça o upload de uma planilha (CSV ou Excel) para segmentar seus dados.")
+    st.header("Análise de Performance de Safra (Cohort)")
+    st.write("Acompanhe o ROI (Retorno sobre Investimento) mensal e acumulado de cada safra.")
 
-    uploaded_file = st.file_uploader("Escolha sua planilha", type=['csv', 'xlsx'], label_visibility="collapsed")
+    uploaded_file = st.uploader("Faça o upload da sua planilha de ROI", type=['csv', 'xlsx'], label_visibility="collapsed")
     
     if uploaded_file:
         try:
             df_cleaned = intelligent_load_and_clean(uploaded_file)
-            st.success(f"Arquivo **{uploaded_file.name}** carregado e pré-processado!")
-
-            if df_cleaned.empty:
-                st.warning("A planilha está vazia."); return
-
-            df_engineered, numeric, categ, datetimes = engineer_dates_and_identify_types(df_cleaned)
-
-            with st.expander("Clique para ver o Plano de Análise", expanded=True):
-                st.markdown("##### O que será analisado:")
-                if not numeric and not categ:
-                    st.warning("Nenhuma coluna válida para análise foi encontrada.")
-                else:
-                    st.write("**Colunas Numéricas:**", f"`{numeric}`" if numeric else "Nenhuma")
-                    st.write("**Colunas de Texto:**", f"`{categ}`" if categ else "Nenhuma")
-                    if datetimes:
-                        st.info(f"**Colunas de Data (`{datetimes}`) foram transformadas em features numéricas (Ano, Mês, Dia, etc.) e incluídas na análise.**")
             
-            if st.button("Confirmar e Executar Análise", type="primary"):
-                with st.spinner('Executando análise... Isso pode levar um momento.'):
-                    cluster_labels, pca_result = run_analysis(df_engineered, numeric, categ)
-                    
-                    # Usa o df_cleaned para mostrar os dados originais, antes da engenharia de datas
-                    df_result = df_cleaned.copy()
-                    df_result['cluster'] = cluster_labels
-                    df_result['pca-one'] = pca_result[:, 0]
-                    df_result['pca-two'] = pca_result[:, 1]
+            if df_cleaned.empty:
+                st.warning("Não foi possível encontrar dados válidos na planilha."); return
 
-                    st.subheader("Visualização dos Clusters")
-                    st.markdown("Os dados foram agrupados. O gráfico abaixo mostra a separação.")
-                    st.scatter_chart(df_result, x='pca-one', y='pca-two', color='cluster')
-                    
-                    st.subheader("Dados com Clusters Atribuídos")
-                    st.dataframe(df_result.drop(['pca-one', 'pca-two'], axis=1))
+            df_cohort = run_cohort_analysis(df_cleaned)
+
+            if df_cohort.empty:
+                st.warning("A análise de coorte não pôde ser gerada. Verifique a estrutura da sua planilha."); return
+
+            st.success("Análise de coorte processada com sucesso!")
+
+            # Filtro de Safras
+            all_cohorts = df_cohort['safra'].unique()
+            selected_cohorts = st.multiselect("Selecione as safras para visualizar:", options=all_cohorts, default=all_cohorts)
+            
+            if not selected_cohorts:
+                st.info("Selecione pelo menos uma safra para visualizar os gráficos.")
+                return
+
+            df_filtered = df_cohort[df_cohort['safra'].isin(selected_cohorts)]
+
+            # Gráficos
+            st.subheader("ROI Acumulado por Safra")
+            st.line_chart(df_filtered, x='mes_num', y='roi_acumulado', color='safra')
+
+            st.subheader("ROI Mensal por Safra")
+            st.line_chart(df_filtered, x='mes_num', y='valor_roi', color='safra')
+            
+            st.subheader("Dados Detalhados da Análise")
+            st.dataframe(df_filtered)
 
         except Exception as e:
-            st.error(f"Ocorreu um erro: {e}")
-            st.error("Verifique se a planilha é válida. O erro pode ocorrer se o formato do arquivo for incompatível ou se uma coluna de texto contiver valores que parecem datas mas não são consistentes.")
+            st.error(f"Ocorreu um erro inesperado durante a análise: {e}")
+            st.error("Por favor, verifique se a estrutura da sua planilha corresponde a um formato de coorte (ex: primeira coluna com a safra, colunas seguintes com os valores mensais).")
 
