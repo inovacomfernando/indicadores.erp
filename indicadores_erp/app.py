@@ -13,14 +13,14 @@ from components.alerts import render_main_alerts
 
 
 # Imports das tabs
-from tabs.tab_evolucao import render_tab_evolucao
+from tabs.tab_resultados import render_tab_resultados
 from tabs.tab_financeiro import render_tab_financeiro
 from tabs.tab_conversao import render_tab_conversao
-from tabs.tab_benchmarks import render_tab_benchmarks
-from tabs.tab_recomendacoes import render_tab_recomendacoes
+from tabs.tab_evolucao import render_tab_evolucao
 from tabs.tab_forecast import render_tab_forecast
+from tabs.tab_benchmarks import render_tab_benchmarks
 from tabs.tab_contador import render_tab_contador
-from tabs.tab_resultados import render_tab_resultados
+from tabs.tab_recomendacoes import render_tab_recomendacoes
 from tabs.tab_roi_receita import render_tab_roi_receita
 
 # Configuração da página
@@ -50,46 +50,46 @@ render_main_alerts(df_filtered)
 # Insights positivos (opcional - descomente se quiser exibir)
 # render_insights(df_filtered)
 
-# Tabs
-tabs = st.tabs([
-    "📈 Evolução", 
-    "💰 Financeiro", 
-    "🎯 Conversão", 
-    "📊 Benchmarks", 
-    "📋 Recomendações", 
+# Criação das tabs
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    "📊 Resultados",
+    "💰 Financeiro",
+    "🎯 Conversão",
+    "📈 Evolução",
     "🔮 Forecast",
-    "🤝 Parceria Contador",
-    "📄 Resultados",
-    "💸 ROI em Receita"
+    "📏 Benchmarks",
+    "🧮 Contador",
+    "💡 Recomendações",
+    "💵 ROI em Receita"
 ])
 
-with tabs[0]:
+with tab1:
+    render_tab_resultados(df_filtered, benchmarks)
+
+with tab2:
+    render_tab_financeiro(df_filtered, benchmarks)
+
+with tab3:
+    render_tab_conversao(df_filtered, benchmarks)
+
+with tab4:
     render_tab_evolucao(df_filtered)
 
-with tabs[1]:
-    render_tab_financeiro(df_filtered, BENCHMARKS)
+with tab5:
+    render_tab_forecast(df_filtered)
 
-with tabs[2]:
-    render_tab_conversao(df_filtered, BENCHMARKS)
+with tab6:
+    render_tab_benchmarks(df_filtered, benchmarks)
 
-with tabs[3]:
-    render_tab_benchmarks(df_filtered, BENCHMARKS)
+with tab7:
+    render_tab_contador()
 
-with tabs[4]:
-    render_tab_recomendacoes()
+with tab8:
+    render_tab_recomendacoes(df_filtered, benchmarks)
 
-with tabs[5]:
-    render_tab_forecast(df)
-
-with tabs[6]:
-    render_tab_contador(df_filtered)
-
-with tabs[7]:
-    render_tab_resultados(df_filtered, BENCHMARKS)
-
-with tabs[8]:
+with tab9:
     render_tab_roi_receita(df_filtered)
-
+    
 # Footer
 st.markdown("---")
 st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Dezembro 2025")
