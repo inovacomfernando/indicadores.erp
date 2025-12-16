@@ -186,6 +186,11 @@ def render_tab_roi_receita(df_principal=None):
         df = df_raw.iloc[1:].copy()
         df.columns = header_row
 
+        # <<< NOVO: remover colunas com nomes duplicados >>>
+        # Sua planilha tem, por exemplo, duas colunas "8º MÊS".
+        # Isso quebra o st.dataframe/pyarrow, então vamos manter só a primeira ocorrência.
+        df = df.loc[:, ~df.columns.astype(str).duplicated()].copy()
+
     except Exception as e:
         st.error(f"Erro ao ler a planilha: {e}")
         st.warning(
