@@ -9,14 +9,66 @@ from utils.calculations import calcular_roi
 
 def clean_numeric_column(series: pd.Series) -> pd.Series:
     """
-    Limpa coluna numérica sem alterar escala.
+    Limpa coluna numérica em formato BR vindo do Excel/Streamlit.
 
-    - Remove apenas símbolos (R$, espaço, %).
-    - NÃO remove ponto decimal e NÃO insere vírgula.
-    - Confia no valor que vem do Excel (que já está como número ou string '2114.56').
+    Casos esperados:
+    - 'R$ 56.308,18'  -> 56308.18
+    - '56.308,18'     -> 56308.18
+    - 'R$ 56,308.18'  -> 56308.18 (caso híbrido gerado por parsing estranho)
+    - '2.114,56'      -> 2114.56
+    - '2114,56'       -> 2114.56
+    - '2114.56'       -> 2114.56 (já em formato US)
     """
-    s = series.astype(str).str.replace(r"[R$\s%]", "", regex=True)
-    return pd.to_numeric(s, errors="coerce")
+    s = series.astype(str).str.strip()
+
+    # Remove símbolo de moeda e espaços
+    s = s.str.replace(r"[R$\s]", "", regex=True)
+
+    def _parse_one(x: str) -> float | None:
+        if x == "" or x.lower() in ("nan", "none"):
+            return None
+
+        # 1) Caso híbrido tipo '56,308.18' (vírgula como milhar + ponto decimal)
+        #    Vamos remover vírgula e manter ponto como decimal => '56308.18'
+        if "," in x and "." in x:
+            # se a parte depois do último ponto tiver 2 casas, assumimos decimal US
+            parte_dec = x.split(".")[-1]
+            if len(parte_dec) in (1, 2):
+                x_norm = x.replace(",", "")  # '56,308.18' -> '56308.18'
+                try:
+                    return float(x_norm)
+                except ValueError:
+                    pass  # se não der, cai nos outros tratamentos
+
+        # 2) Formato BR clássico com vírgula decimal, ex: '56.308,18' ou '2.114,56'
+        if "," in x and (x.rfind(",") > x.rfind(".")):
+            # remove pontos (milhar) e troca vírgula por ponto
+            x_norm = x.replace(".", "").replace(",", ".")
+            # '56.308,18' -> '56308.18', '2.114,56' -> '2114.56'
+            try:
+                return float(x_norm)
+            except ValueError:
+                return None
+
+        # 3) Formato US simples: apenas ponto decimal, ex: '2114.56'
+        if "." in x and "," not in x:
+            try:
+                return float(x)
+            except ValueError:
+                return None
+
+        # 4) Inteiros sem separador
+        if x.isdigit():
+            try:
+                return float(x)
+            except ValueError:
+                return None
+
+        # Se nada funcionar, retorna None
+        return None
+
+    parsed = s.apply(_parse_one)
+    return pd.to_numeric(parsed, errors="coerce")
 
 
 def encontrar_payback(row: pd.Series, n_meses: int = 12) -> float | None:
