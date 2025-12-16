@@ -3,14 +3,11 @@ Arquivo principal refatorado
 """
 import streamlit as st
 
-# Imports dos módulos
-from config.settings import PAGE_CONFIG, BENCHMARKS
-from config.styles import get_custom_css
+# Imports dos módulosfrom config.styles import get_custom_css
 from data.loader import load_data, filter_data
 from components.header import render_header, render_sidebar
 from components.metrics import render_main_metrics
 from components.alerts import render_main_alerts
-
 
 # Imports das tabs
 from tabs.tab_resultados import render_tab_resultados
@@ -22,6 +19,9 @@ from tabs.tab_benchmarks import render_tab_benchmarks
 from tabs.tab_contador import render_tab_contador
 from tabs.tab_recomendacoes import render_tab_recomendacoes
 from tabs.tab_roi_receita import render_tab_roi_receita
+
+# Alias para benchmarks (para usar em minúsculo no código)
+benchmarks = BENCHMARKS
 
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
@@ -46,9 +46,6 @@ render_main_metrics(df_filtered)
 
 # Alertas dinâmicos (agora recebe o DataFrame)
 render_main_alerts(df_filtered)
-
-# Insights positivos (opcional - descomente se quiser exibir)
-# render_insights(df_filtered)
 
 # Criação das tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
@@ -88,9 +85,9 @@ with tab8:
     render_tab_recomendacoes(df_filtered, benchmarks)
 
 with tab9:
+    # Aqui vamos passar o df filtrado para enriquecer os insights de ROI
     render_tab_roi_receita(df_filtered)
-    
+
 # Footer
 st.markdown("---")
 st.caption("Dashboard de Marketing - SaaS ERP | Atualizado em Dezembro 2025")
-
