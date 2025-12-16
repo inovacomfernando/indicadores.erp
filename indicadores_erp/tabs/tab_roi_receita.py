@@ -64,7 +64,7 @@ def render_tab_roi_receita():
     st.header("Análise de Performance de Safra (Cohort)")
     st.write("Acompanhe o ROI (Retorno sobre Investimento) mensal e acumulado de cada safra.")
 
-    uploaded_file = st.uploader("Faça o upload da sua planilha de ROI", type=['csv', 'xlsx'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("Faça o upload da sua planilha de ROI", type=['csv', 'xlsx'])
     
     if uploaded_file:
         try:
