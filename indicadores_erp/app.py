@@ -81,7 +81,7 @@ with tab7:
     render_tab_contador(df_filtered)
 
 with tab8:
-    render_tab_recomendacoes(df_filtered, BENCHMARKS)
+    render_tab_recomendacoes()
 
 with tab9:
     render_tab_roi_receita(df_filtered)
