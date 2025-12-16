@@ -1,3 +1,6 @@
+"""
+Tab: Análise Inteligente de ROI em Receita (12 meses diluídos)
+"""
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -6,27 +9,32 @@ from utils.calculations import calcular_roi
 
 def clean_numeric_column(series: pd.Series) -> pd.Series:
     """
-    Limpa uma coluna numérica (R$, %, espaços, pontos de milhar, vírgulas).
+    Limpa coluna numérica, lidando tanto com formato BR (2.114,56)
+    quanto com formato US (2114.56), sem multiplicar valores por 100.
     """
-    if series.dtype == "object" or pd.api.types.is_categorical_dtype(series):
-        series = (
-            series.astype(str)
-            .str.replace(r"[R$\s%]", "", regex=True)
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-        )
-    return pd.to_numeric(series, errors="coerce")
+    s = series.astype(str).str.replace(r"[R$\s%]", "", regex=True)
+
+    # Se existir vírgula em algum valor, assumimos formato BR (milhar . e decimal ,)
+    if s.str.contains(",", regex=False).any():
+        s = s.str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+        # agora 2.114,56 -> 2114.56
+    # Se não houver vírgula, assumimos que o ponto já é decimal (formato US)
+    # e NÃO removemos o ponto.
+
+    return pd.to_numeric(s, errors="coerce")
 
 
-def encontrar_payback(row: pd.Series, cols_coorte: list[str]) -> float | None:
+def encontrar_payback(row: pd.Series, n_meses: int = 12) -> float | None:
     """
     Retorna o primeiro mês relativo em que o retorno acumulado fica >= 0.
-    Ex.: se '3º MÊS' é o primeiro >= 0, retorna 3.
+    Usa as colunas roi_1m_valor, roi_2m_valor, ..., roi_Nm_valor.
     """
-    for i, col in enumerate(cols_coorte, start=1):
-        val = row.get(col)
-        if pd.notnull(val) and val >= 0:
-            return i
+    for i in range(1, n_meses + 1):
+        col = f"roi_{i}m_valor"
+        if col in row.index:
+            val = row[col]
+            if pd.notnull(val) and val >= 0:
+                return i
     return None
 
 
@@ -153,11 +161,12 @@ def render_tab_roi_receita(df_principal=None):
         "Envie a planilha de ROI diluído com a estrutura:\n\n"
         "- Mês\n"
         "- Receita web\n"
-        "- Total Ads\n"
-        "- 1º MÊS, 2º MÊS, ..., 12º MÊS (retorno acumulado em R$ ao longo do tempo)\n\n"
+        "- Total Ads\n\n"
         "A partir disso, o sistema calcula:\n"
         "- ROI simples por mês (Receita web x Total Ads)\n"
-        "- ROI diluído por coorte de investimento (1º ao 12º mês)\n"
+        "- ROI diluído por coorte de investimento (1º ao 12º mês), seguindo a fórmula:\n"
+        "  - ROI_1 = Receita - Investimento\n"
+        "  - ROI_n = ROI_{n-1} + Receita (acumulado mês a mês)\n"
         "- Payback médio, mediano e % de coortes com payback ≤ 6 meses\n"
         "- Mapa de calor de coortes x meses relativos\n"
         "- Resumo executivo em linguagem de negócio (SaaS ERP)."
@@ -182,7 +191,7 @@ def render_tab_roi_receita(df_principal=None):
         df_raw.dropna(axis="columns", how="all", inplace=True)
 
         # Na sua planilha, a 1ª linha é decorativa ("CÁLCULO ROI DILUÍDO ...")
-        # e a 2ª linha (índice 1) é o cabeçalho real: Mês, Receita web, Total Ads, 1º MÊS...
+        # e a 2ª linha (índice 1) é o cabeçalho real: Mês, Receita web, Total Ads
         if len(df_raw) < 2:
             raise ValueError("Planilha não tem linhas suficientes para identificar o cabeçalho.")
 
@@ -205,8 +214,8 @@ def render_tab_roi_receita(df_principal=None):
     except Exception as e:
         st.error(f"Erro ao ler a planilha: {e}")
         st.warning(
-            "Confirme que a primeira linha da planilha contém os cabeçalhos: "
-            "Mês, Receita web, Total Ads, 1º MÊS, 2º MÊS, ..., 12º MÊS."
+            "Confirme que a segunda linha da planilha contém os cabeçalhos: "
+            "Mês, Receita web, Total Ads."
         )
         return
 
@@ -221,20 +230,12 @@ def render_tab_roi_receita(df_principal=None):
     col_mes = "Mês"
     col_receita = "Receita web"
     col_ads = "Total Ads"
-    cols_coorte = [c for c in df.columns if "MÊS" in str(c)]
 
     missing = [c for c in [col_mes, col_receita, col_ads] if c not in df.columns]
     if missing:
         st.error(
             "A planilha não contém as colunas obrigatórias: "
             + ", ".join(missing)
-        )
-        return
-
-    if not cols_coorte:
-        st.error(
-            "Não foram encontradas colunas de coorte (ex.: 1º MÊS, 2º MÊS, ..., 12º MÊS). "
-            "Verifique o layout da planilha."
         )
         return
 
@@ -262,37 +263,23 @@ def render_tab_roi_receita(df_principal=None):
         lambda row: calcular_roi(row["receita_web"], row["total_ads"]), axis=1
     )
 
-    # Limpa colunas de coorte (1º MÊS .. 12º MÊS)
-    for c in cols_coorte:
-        df[c] = clean_numeric_column(df[c])
+    # --- RECALCULAR ROI DILUÍDO DE 1 A 12 MESES (SEGUINDO SUA FÓRMULA) ---
+    # ROI_1 = Receita - Investimento
+    # ROI_n = ROI_{n-1} + Receita
+    for n in range(1, 13):
+        if n == 1:
+            df[f"roi_{n}m_valor"] = df["receita_web"] - df["total_ads"]
+        else:
+            df[f"roi_{n}m_valor"] = df[f"roi_{n-1}m_valor"] + df["receita_web"]
 
-    # Ordena colunas de coorte por número (1º, 2º, ..., 12º)
-    def _extract_num(mes_label: str) -> int:
-        try:
-            return int("".join(filter(str.isdigit, str(mes_label))))
-        except ValueError:
-            return 999
-
-    cols_coorte = sorted(cols_coorte, key=_extract_num)
+    # ROI em % por coorte
+    for n in range(1, 13):
+        df[f"roi_{n}m_pct"] = (
+            df[f"roi_{n}m_valor"] / df["total_ads"].replace(0, pd.NA)
+        ) * 100
 
     # Payback por coorte
-    df["payback_meses"] = df.apply(
-        lambda row: encontrar_payback(row, cols_coorte), axis=1
-    )
-
-    # ROI em R$ e em % para horizontes 3, 6, 12 meses (se existirem)
-    map_horiz = {
-        3: next((c for c in cols_coorte if _extract_num(c) == 3), None),
-        6: next((c for c in cols_coorte if _extract_num(c) == 6), None),
-        12: next((c for c in cols_coorte if _extract_num(c) == 12), cols_coorte[-1]),
-    }
-
-    for h, col_h in map_horiz.items():
-        if col_h and col_h in df.columns:
-            df[f"retorno_{h}m"] = df[col_h]
-            df[f"roi_{h}m_pct"] = (
-                df[f"retorno_{h}m"] / df["total_ads"].replace(0, pd.NA)
-            ) * 100
+    df["payback_meses"] = df.apply(lambda row: encontrar_payback(row, 12), axis=1)
 
     # --- RESUMO GLOBAL PARA VISÃO EXECUTIVA ---
     invest_total = df["total_ads"].sum()
@@ -301,36 +288,18 @@ def render_tab_roi_receita(df_principal=None):
     resumo = {
         "invest_total": invest_total,
         "receita_mes0_total": receita_mes0_total,
-        "retorno_3m_total": df["retorno_3m"].sum()
-        if "retorno_3m" in df
-        else None,
-        "retorno_6m_total": df["retorno_6m"].sum()
-        if "retorno_6m" in df
-        else None,
-        "retorno_12m_total": df["retorno_12m"].sum()
-        if "retorno_12m" in df
-        else (df[cols_coorte[-1]].sum() if cols_coorte else None),
+        "retorno_3m_total": df["roi_3m_valor"].sum(),
+        "retorno_6m_total": df["roi_6m_valor"].sum(),
+        "retorno_12m_total": df["roi_12m_valor"].sum(),
     }
 
-    if resumo["retorno_3m_total"] is not None and invest_total > 0:
-        resumo["roi_3m_pct_total"] = (
-            resumo["retorno_3m_total"] / invest_total
-        ) * 100
+    if invest_total > 0:
+        resumo["roi_3m_pct_total"] = (resumo["retorno_3m_total"] / invest_total) * 100
+        resumo["roi_6m_pct_total"] = (resumo["retorno_6m_total"] / invest_total) * 100
+        resumo["roi_12m_pct_total"] = (resumo["retorno_12m_total"] / invest_total) * 100
     else:
         resumo["roi_3m_pct_total"] = None
-
-    if resumo["retorno_6m_total"] is not None and invest_total > 0:
-        resumo["roi_6m_pct_total"] = (
-            resumo["retorno_6m_total"] / invest_total
-        ) * 100
-    else:
         resumo["roi_6m_pct_total"] = None
-
-    if resumo["retorno_12m_total"] is not None and invest_total > 0:
-        resumo["roi_12m_pct_total"] = (
-            resumo["retorno_12m_total"] / invest_total
-        ) * 100
-    else:
         resumo["roi_12m_pct_total"] = None
 
     # Payback agregado
@@ -338,16 +307,14 @@ def render_tab_roi_receita(df_principal=None):
     if not paybacks_validos.empty:
         resumo["payback_medio"] = paybacks_validos.mean()
         resumo["payback_mediano"] = paybacks_validos.median()
-        resumo["pct_payback_ate_6"] = (
-            (paybacks_validos <= 6).mean() * 100
-        )
+        resumo["pct_payback_ate_6"] = (paybacks_validos <= 6).mean() * 100
     else:
         resumo["payback_medio"] = None
         resumo["payback_mediano"] = None
         resumo["pct_payback_ate_6"] = None
 
     # Integra com df_principal (LTV / Ticket Médio), se disponível
-    if df_principal is not None:
+    if df_principal is not None and not df_principal.empty:
         if "LTV" in df_principal.columns:
             resumo["ltv_medio"] = df_principal["LTV"].mean()
         else:
@@ -368,8 +335,7 @@ def render_tab_roi_receita(df_principal=None):
     col_k1, col_k2, col_k3, col_k4 = st.columns(4)
     col_k1.metric("Investimento Total em Ads", f"R$ {invest_total:,.2f}")
     col_k2.metric("Receita Web (Mês 0)", f"R$ {receita_mes0_total:,.2f}")
-    if resumo["retorno_12m_total"] is not None:
-        col_k3.metric("Retorno Líquido em 12m", f"R$ {resumo['retorno_12m_total']:,.2f}")
+    col_k3.metric("Retorno Líquido em 12m", f"R$ {resumo['retorno_12m_total']:,.2f}")
     if resumo["roi_12m_pct_total"] is not None:
         col_k4.metric("ROI 12m (acumulado)", f"{resumo['roi_12m_pct_total']:,.1f}%")
 
@@ -407,43 +373,34 @@ def render_tab_roi_receita(df_principal=None):
     st.markdown("---")
     st.subheader("ROI Diluído por Coorte (3, 6 e 12 meses)")
 
-    cols_roi_resumo = []
-    if "roi_3m_pct" in df:
-        cols_roi_resumo.append("roi_3m_pct")
-    if "roi_6m_pct" in df:
-        cols_roi_resumo.append("roi_6m_pct")
-    if "roi_12m_pct" in df:
-        cols_roi_resumo.append("roi_12m_pct")
+    df_coorte = df_ordered[["mes_ano_str", "roi_3m_pct", "roi_6m_pct", "roi_12m_pct"]].copy()
+    df_coorte = df_coorte.melt(
+        id_vars="mes_ano_str",
+        var_name="horizonte",
+        value_name="roi_pct",
+    )
+    df_coorte["horizonte"] = df_coorte["horizonte"].map(
+        {
+            "roi_3m_pct": "3 meses",
+            "roi_6m_pct": "6 meses",
+            "roi_12m_pct": "12 meses",
+        }
+    )
 
-    if cols_roi_resumo:
-        df_coorte = df_ordered[["mes_ano_str"] + cols_roi_resumo].copy()
-        df_coorte = df_coorte.melt(
-            id_vars="mes_ano_str",
-            var_name="horizonte",
-            value_name="roi_pct",
-        )
-        df_coorte["horizonte"] = df_coorte["horizonte"].map(
-            {
-                "roi_3m_pct": "3 meses",
-                "roi_6m_pct": "6 meses",
-                "roi_12m_pct": "12 meses",
-            }
-        )
-
-        fig_roi_coorte = px.line(
-            df_coorte,
-            x="mes_ano_str",
-            y="roi_pct",
-            color="horizonte",
-            markers=True,
-            labels={
-                "mes_ano_str": "Mês de investimento (coorte)",
-                "roi_pct": "ROI (%)",
-                "horizonte": "Horizonte",
-            },
-            title="ROI por Coorte e Horizonte (3m / 6m / 12m)",
-        )
-        st.plotly_chart(fig_roi_coorte, use_container_width=True)
+    fig_roi_coorte = px.line(
+        df_coorte,
+        x="mes_ano_str",
+        y="roi_pct",
+        color="horizonte",
+        markers=True,
+        labels={
+            "mes_ano_str": "Mês de investimento (coorte)",
+            "roi_pct": "ROI (%)",
+            "horizonte": "Horizonte",
+        },
+        title="ROI por Coorte e Horizonte (3m / 6m / 12m)",
+    )
+    st.plotly_chart(fig_roi_coorte, use_container_width=True)
 
     # --- PAYBACK ---
     st.markdown("---")
@@ -474,11 +431,8 @@ def render_tab_roi_receita(df_principal=None):
     st.markdown("---")
     st.subheader("Mapa de Calor: ROI (%) por Coorte x Mês Relativo")
 
-    df_heat = df_ordered[["mes_ano_str", "total_ads"] + cols_coorte].copy()
-    for c in cols_coorte:
-        df_heat[c] = (df_heat[c] / df_heat["total_ads"].replace(0, pd.NA)) * 100
-
-    heat_matrix = df_heat.set_index("mes_ano_str")[cols_coorte]
+    cols_roi_heat = [f"roi_{n}m_pct" for n in range(1, 13)]
+    heat_matrix = df_ordered.set_index("mes_ano_str")[cols_roi_heat]
 
     fig_heat = px.imshow(
         heat_matrix,
