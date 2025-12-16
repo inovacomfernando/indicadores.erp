@@ -346,7 +346,11 @@ def render_tab_roi_receita(df_principal=None):
         resumo["roi_12m_pct_total"] = None
 
     # Payback agregado
-    paybacks_validos = df["payback_meses"].dropna()
+    if "payback_meses" in df.columns:
+        paybacks_validos = df["payback_meses"].dropna()
+    else:
+        paybacks_validos = pd.Series([], dtype='float64')
+
     if not paybacks_validos.empty:
         resumo["payback_medio"] = paybacks_validos.mean()
         resumo["payback_mediano"] = paybacks_validos.median()
