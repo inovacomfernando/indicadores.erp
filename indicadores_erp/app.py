@@ -3,7 +3,9 @@ Arquivo principal refatorado
 """
 import streamlit as st
 
-# Imports dos módulosfrom config.styles import get_custom_css
+# Imports dos módulos
+from config.settings import PAGE_CONFIG, BENCHMARKS
+from config.styles import get_custom_css
 from data.loader import load_data, filter_data
 from components.header import render_header, render_sidebar
 from components.metrics import render_main_metrics
@@ -61,13 +63,13 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
 ])
 
 with tab1:
-    render_tab_resultados(df_filtered, benchmarks)
+    render_tab_resultados(df_filtered, BENCHMARKS)
 
 with tab2:
-    render_tab_financeiro(df_filtered, benchmarks)
+    render_tab_financeiro(df_filtered, BENCHMARKS)
 
 with tab3:
-    render_tab_conversao(df_filtered, benchmarks)
+    render_tab_conversao(df_filtered, BENCHMARKS)
 
 with tab4:
     render_tab_evolucao(df_filtered)
@@ -76,16 +78,15 @@ with tab5:
     render_tab_forecast(df_filtered)
 
 with tab6:
-    render_tab_benchmarks(df_filtered, benchmarks)
+    render_tab_benchmarks(df_filtered, BENCHMARKS)
 
 with tab7:
     render_tab_contador()
 
 with tab8:
-    render_tab_recomendacoes(df_filtered, benchmarks)
+    render_tab_recomendacoes(df_filtered, BENCHMARKS)
 
 with tab9:
-    # Aqui vamos passar o df filtrado para enriquecer os insights de ROI
     render_tab_roi_receita(df_filtered)
 
 # Footer
