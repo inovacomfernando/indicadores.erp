@@ -94,6 +94,49 @@ def render_tab_benchmarks(df_filtered: pd.DataFrame, benchmarks: dict):
     if df_filtered is None or df_filtered.empty:
         st.info("Sem dados filtrados para comparar com benchmarks.")
         return
+    
+    # --------------------------
+    # Integração com ROI Receita
+    # --------------------------
+    df_roi = st.session_state.get("df_roi_receita")
+    resumo_roi = st.session_state.get("resumo_roi_receita")
+
+    if resumo_roi is not None:
+        with st.expander("Resumo de ROI em Receita (planilha importada)", expanded=False):
+            inv_tot = resumo_roi.get("invest_total")
+            ret_12 = resumo_roi.get("retorno_12m_total")
+            roi_12 = resumo_roi.get("roi_12m_pct_total")
+            pay_medio = resumo_roi.get("payback_medio")
+            pay_mediano = resumo_roi.get("payback_mediano")
+            pct_6 = resumo_roi.get("pct_payback_ate_6")
+
+            cols = st.columns(3)
+            if inv_tot is not None:
+                cols[0].metric("Investimento Total (ROI Receita)", f"R$ {inv_tot:,.2f}")
+            if ret_12 is not None:
+                cols[1].metric("Retorno Líquido em 12m (ROI Receita)", f"R$ {ret_12:,.2f}")
+            if roi_12 is not None:
+                cols[2].metric("ROI 12m (Receita)", f"{roi_12:,.1f}%")
+
+            colb = st.columns(3)
+            if pay_medio is not None:
+                colb[0].metric("Payback Médio (meses)", f"{pay_medio:.1f}")
+            if pay_mediano is not None:
+                colb[1].metric("Payback Mediano (meses)", f"{pay_mediano:.1f}")
+            if pct_6 is not None:
+                colb[2].metric("% Coortes com Payback ≤ 6m", f"{pct_6:.0f}%")
+
+            if df_roi is not None:
+                st.markdown("Coortes de ROI utilizadas:")
+                st.dataframe(
+                    df_roi[["mes_ano_str", "receita_web", "total_ads", "roi_12m_pct", "payback_meses"]],
+                    use_container_width=True
+                )
+    else:
+        st.info(
+            "Dica: para enriquecer esta aba, importe a planilha em 'ROI em Receita'. "
+            "Os dados de ROI diluído serão usados aqui como contexto."
+        )
 
     # ==========================
     # 1. Cálculo das suas médias
@@ -281,8 +324,15 @@ def render_tab_benchmarks(df_filtered: pd.DataFrame, benchmarks: dict):
     df_ml = df_filtered.copy()
     df_ml = df_ml[feature_cols + [target_col]].dropna()
 
+    if df_ml.shape[0] < 5:
+        st.info("Histórico insuficiente (menos de 5 linhas) para treinar qualquer modelo.")
+        return
+
     if df_ml.shape[0] < 20:
-        st.info("Histórico insuficiente (menos de 20 linhas) para treinar um modelo robusto.")
+        st.warning(
+            f"Histórico curto ({df_ml.shape[0]} linhas). "
+            "O modelo preditivo é apenas indicativo, não estatisticamente robusto."
+        )
         return
 
     X = df_ml[feature_cols]

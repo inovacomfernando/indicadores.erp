@@ -269,6 +269,10 @@ def render_tab_roi_receita(df_principal=None):
     with st.expander("Pré-visualização dos dados carregados", expanded=False):
         st.dataframe(df.head())
 
+    # --- Compartilha dados com outras abas via session_state ---
+    st.session_state["df_roi_receita"] = df_ordered.copy()
+    st.session_state["resumo_roi_receita"] = resumo
+
     # --- VALIDAÇÃO DAS COLUNAS ESPERADAS ---
     col_mes = "Mês"
     col_receita = "Receita web"
