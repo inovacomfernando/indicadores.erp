@@ -22,9 +22,6 @@ from tabs.tab_contador import render_tab_contador
 from tabs.tab_recomendacoes import render_tab_recomendacoes
 from tabs.tab_roi_receita import render_tab_roi_receita
 
-# Alias para benchmarks (para usar em minúsculo no código)
-benchmarks = BENCHMARKS
-
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
 
