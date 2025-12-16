@@ -181,15 +181,26 @@ def render_tab_roi_receita(df_principal=None):
         df_raw.dropna(axis="rows", how="all", inplace=True)
         df_raw.dropna(axis="columns", how="all", inplace=True)
 
-        # Assume que a primeira linha útil contém os títulos
-        header_row = df_raw.iloc[0]
-        df = df_raw.iloc[1:].copy()
+        # Na sua planilha, a 1ª linha é decorativa ("CÁLCULO ROI DILUÍDO ...")
+        # e a 2ª linha (índice 1) é o cabeçalho real: Mês, Receita web, Total Ads, 1º MÊS...
+        if len(df_raw) < 2:
+            raise ValueError("Planilha não tem linhas suficientes para identificar o cabeçalho.")
+
+        header_row = df_raw.iloc[1]
+        df = df_raw.iloc[2:].copy()  # dados começam depois da linha de cabeçalho real
         df.columns = header_row
 
-        # <<< NOVO: remover colunas com nomes duplicados >>>
-        # Sua planilha tem, por exemplo, duas colunas "8º MÊS".
-        # Isso quebra o st.dataframe/pyarrow, então vamos manter só a primeira ocorrência.
+        # Remover colunas com nomes duplicados (ex.: duas colunas '8º MÊS')
         df = df.loc[:, ~df.columns.astype(str).duplicated()].copy()
+
+        # Normalizar nomes de colunas: remover espaços, tratar NaN/vazios
+        novas_cols = []
+        for i, c in enumerate(df.columns):
+            nome = str(c).strip()
+            if nome == "" or nome.lower() in ("nan", "none"):
+                nome = f"col_{i}"  # nome genérico para colunas sem título
+            novas_cols.append(nome)
+        df.columns = novas_cols
 
     except Exception as e:
         st.error(f"Erro ao ler a planilha: {e}")
