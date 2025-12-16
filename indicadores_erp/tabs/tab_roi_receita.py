@@ -1,14 +1,74 @@
 import streamlit as st
 import pandas as pd
-import io
+from sklearn.cluster import KMeans
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.decomposition import PCA
+
+@st.cache_data
+def run_automated_analysis(df: pd.DataFrame):
+    """
+    Executa um pipeline de análise automatizado no DataFrame fornecido.
+    """
+    # 1. Identificar tipos de colunas
+    numeric_features = df.select_dtypes(include=['int64', 'float64']).columns
+    categorical_features = df.select_dtypes(include=['object', 'category']).columns
+
+    # Remover colunas com apenas um valor único (não informativas para a análise)
+    for col in df.columns:
+        if df[col].nunique() <= 1:
+            if col in numeric_features:
+                numeric_features = numeric_features.drop(col)
+            if col in categorical_features:
+                categorical_features = categorical_features.drop(col)
+
+    # 2. Criar pipelines de pré-processamento
+    numeric_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())])
+
+    categorical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))])
+
+    # 3. Combinar pré-processadores
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numeric_transformer, numeric_features),
+            ('cat', categorical_transformer, categorical_features)])
+
+    # 4. Criar o pipeline de análise completo com K-Means
+    # Usaremos 4 clusters como um ponto de partida padrão
+    pipeline = Pipeline(steps=[('preprocessor', preprocessor),
+                               ('cluster', KMeans(n_clusters=4, n_init=10, random_state=42))])
+    
+    # 5. Executar o pipeline
+    pipeline.fit(df)
+    cluster_labels = pipeline.named_steps['cluster'].labels_
+
+    # 6. Redução de dimensionalidade com PCA para visualização
+    # Aplicar o pré-processamento primeiro
+    processed_data = pipeline.named_steps['preprocessor'].transform(df)
+    pca = PCA(n_components=2, random_state=42)
+    pca_result = pca.fit_transform(processed_data.toarray() if hasattr(processed_data, "toarray") else processed_data)
+
+    # 7. Preparar o DataFrame de resultados
+    df_result = df.copy()
+    df_result['cluster'] = cluster_labels
+    df_result['pca-one'] = pca_result[:, 0]
+    df_result['pca-two'] = pca_result[:, 1]
+    
+    return df_result, numeric_features, categorical_features
 
 def render_tab_roi_receita():
     """
     Renderiza a aba de Análise de ROI em Receita.
     """
-    st.header("Análise de ROI em Receita")
+    st.header("Análise Automática de Clusters")
     
-    st.write("Faça o upload de uma planilha (CSV ou Excel) para carregar os dados.")
+    st.write("Faça o upload de uma planilha (CSV ou Excel) para segmentar seus dados automaticamente.")
 
     uploaded_file = st.file_uploader(
         "Escolha sua planilha de dados", 
@@ -18,7 +78,6 @@ def render_tab_roi_receita():
     
     if uploaded_file is not None:
         try:
-            # Para armazenar o dataframe em cache e evitar recarregar a cada interação
             @st.cache_data
             def load_data(file):
                 if file.name.endswith('.csv'):
@@ -27,18 +86,41 @@ def render_tab_roi_receita():
                     df = pd.read_excel(file)
                 return df
 
-            df = load_data(uploaded_file)
-
+            df_original = load_data(uploaded_file)
             st.success(f"Arquivo **{uploaded_file.name}** carregado com sucesso!")
-            st.dataframe(df)
-            
-            # Placeholder para análise com scikit-learn
-            st.subheader("Próximos Passos: Análise com Scikit-learn")
-            st.info(
-                "Os dados foram carregados em um DataFrame do Pandas. "
-                "Agora você pode adicionar sua lógica de análise e visualização utilizando scikit-learn."
+
+            if df_original.empty:
+                st.warning("A planilha está vazia.")
+                return
+
+            with st.spinner('Executando análise automática...'):
+                df_result, numeric, categ = run_automated_analysis(df_original)
+
+            st.subheader("Visualização dos Clusters")
+            st.markdown(
+                "Os dados foram agrupados em clusters. O gráfico abaixo mostra essa separação. "
+                "Pontos da mesma cor pertencem ao mesmo grupo e compartilham características semelhantes."
             )
-            # Exemplo: st.write(df.describe())
+            
+            # Gráfico de dispersão
+            chart = st.scatter_chart(
+                df_result,
+                x='pca-one',
+                y='pca-two',
+                color='cluster',
+                size=5,
+            )
+            
+            st.subheader("Dados com Clusters Atribuídos")
+            st.markdown("A tabela abaixo mostra os dados originais com uma nova coluna 'cluster' indicando a que grupo cada linha pertence.")
+            st.dataframe(df_result.drop(['pca-one', 'pca-two'], axis=1))
+
+            st.subheader("Resumo da Análise")
+            st.write(f"Foram analisadas **{len(numeric)}** colunas numéricas e **{len(categ)}** colunas de texto.")
+            st.write(f"As colunas numéricas foram: `{list(numeric)}`")
+            st.write(f"As colunas de texto foram: `{list(categ)}`")
+
 
         except Exception as e:
-            st.error(f"Ocorreu um erro ao processar o arquivo: {e}")
+            st.error(f"Ocorreu um erro durante a análise: {e}")
+            st.error("Por favor, verifique se a planilha tem dados válidos e tente novamente.")
