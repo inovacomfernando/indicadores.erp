@@ -12,19 +12,29 @@ def run_automated_analysis(df: pd.DataFrame):
     """
     Executa um pipeline de análise automatizado no DataFrame fornecido.
     """
-    # 1. Identificar tipos de colunas
-    numeric_features = df.select_dtypes(include=['int64', 'float64']).columns
-    categorical_features = df.select_dtypes(include=['object', 'category']).columns
+    df_analysis = df.copy()
 
-    # Remover colunas com apenas um valor único (não informativas para a análise)
-    for col in df.columns:
-        if df[col].nunique() <= 1:
+    # 1. Tentar converter colunas de objeto para data/hora
+    for col in df_analysis.select_dtypes(include=['object']).columns:
+        try:
+            df_analysis[col] = pd.to_datetime(df_analysis[col], errors='raise', format='mixed')
+        except (ValueError, TypeError):
+            continue # Não é uma coluna de data/hora
+
+    # 2. Identificar tipos de colunas, agora separando datetimes
+    datetime_features = df_analysis.select_dtypes(include=['datetime64']).columns
+    numeric_features = df_analysis.select_dtypes(include=['int64', 'float64']).columns
+    categorical_features = df_analysis.select_dtypes(include=['object', 'category']).columns
+
+    # Remover colunas com apenas um valor único (não informativas) das listas de features
+    for col in df_analysis.columns:
+        if df_analysis[col].nunique() <= 1:
             if col in numeric_features:
                 numeric_features = numeric_features.drop(col)
             if col in categorical_features:
                 categorical_features = categorical_features.drop(col)
 
-    # 2. Criar pipelines de pré-processamento
+    # 3. Criar pipelines de pré-processamento
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
         ('scaler', StandardScaler())])
@@ -33,34 +43,33 @@ def run_automated_analysis(df: pd.DataFrame):
         ('imputer', SimpleImputer(strategy='most_frequent')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))])
 
-    # 3. Combinar pré-processadores
+    # 4. Combinar pré-processadores
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numeric_transformer, numeric_features),
-            ('cat', categorical_transformer, categorical_features)])
+            ('cat', categorical_transformer, categorical_features)],
+        remainder='drop') # Ignora colunas não especificadas (como as de data/hora)
 
-    # 4. Criar o pipeline de análise completo com K-Means
-    # Usaremos 4 clusters como um ponto de partida padrão
+    # 5. Criar o pipeline de análise completo com K-Means
     pipeline = Pipeline(steps=[('preprocessor', preprocessor),
                                ('cluster', KMeans(n_clusters=4, n_init=10, random_state=42))])
     
-    # 5. Executar o pipeline
-    pipeline.fit(df)
+    # 6. Executar o pipeline
+    pipeline.fit(df_analysis)
     cluster_labels = pipeline.named_steps['cluster'].labels_
 
-    # 6. Redução de dimensionalidade com PCA para visualização
-    # Aplicar o pré-processamento primeiro
-    processed_data = pipeline.named_steps['preprocessor'].transform(df)
+    # 7. Redução de dimensionalidade com PCA para visualização
+    processed_data = pipeline.named_steps['preprocessor'].transform(df_analysis)
     pca = PCA(n_components=2, random_state=42)
     pca_result = pca.fit_transform(processed_data.toarray() if hasattr(processed_data, "toarray") else processed_data)
 
-    # 7. Preparar o DataFrame de resultados
+    # 8. Preparar o DataFrame de resultados
     df_result = df.copy()
     df_result['cluster'] = cluster_labels
     df_result['pca-one'] = pca_result[:, 0]
     df_result['pca-two'] = pca_result[:, 1]
     
-    return df_result, numeric_features, categorical_features
+    return df_result, numeric_features, categorical_features, datetime_features
 
 def render_tab_roi_receita():
     """
@@ -94,7 +103,7 @@ def render_tab_roi_receita():
                 return
 
             with st.spinner('Executando análise automática...'):
-                df_result, numeric, categ = run_automated_analysis(df_original)
+                df_result, numeric, categ, datetimes = run_automated_analysis(df_original)
 
             st.subheader("Visualização dos Clusters")
             st.markdown(
@@ -103,7 +112,7 @@ def render_tab_roi_receita():
             )
             
             # Gráfico de dispersão
-            chart = st.scatter_chart(
+            st.scatter_chart(
                 df_result,
                 x='pca-one',
                 y='pca-two',
@@ -117,6 +126,8 @@ def render_tab_roi_receita():
 
             st.subheader("Resumo da Análise")
             st.write(f"Foram analisadas **{len(numeric)}** colunas numéricas e **{len(categ)}** colunas de texto.")
+            if len(datetimes) > 0:
+                st.info(f"As seguintes colunas de data/hora foram detectadas e **excluídas** da análise de cluster: `{list(datetimes)}`")
             st.write(f"As colunas numéricas foram: `{list(numeric)}`")
             st.write(f"As colunas de texto foram: `{list(categ)}`")
 
