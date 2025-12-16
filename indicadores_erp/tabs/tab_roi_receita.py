@@ -7,7 +7,21 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 
-# Usa o cache para evitar reprocessar os dados e o plano a cada interação
+@st.cache_data
+def intelligent_load_and_clean(file):
+    """
+    Carrega dados de um arquivo e realiza uma limpeza de tipos inteligente.
+    """
+    df = pd.read_csv(file, encoding='utf-8', sep=None, engine='python') if file.name.endswith('.csv') else pd.read_excel(file)
+
+    # Tenta converter colunas para numéricas de forma agressiva
+    for col in df.columns:
+        # Tenta converter para numérico. Se a coluna já for numérica ou data, ignora.
+        if df[col].dtype == 'object':
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(df[col])
+    
+    return df
+
 @st.cache_data
 def engineer_dates_and_identify_types(df: pd.DataFrame):
     """
@@ -15,28 +29,23 @@ def engineer_dates_and_identify_types(df: pd.DataFrame):
     """
     df_engineered = df.copy()
     
-    # 1. Tenta converter colunas de objeto para data/hora
     original_datetime_features = []
     for col in df_engineered.select_dtypes(include=['object']).columns:
         try:
-            # Tenta converter para data/hora; se falhar, continua
             df_engineered[col] = pd.to_datetime(df_engineered[col], errors='raise', format='mixed')
             original_datetime_features.append(col)
         except (ValueError, TypeError):
             continue
 
-    # 2. Engenharia de Features para colunas de data/hora
     for col in original_datetime_features:
         df_engineered[f'{col}_Ano'] = df_engineered[col].dt.year
         df_engineered[f'{col}_Mês'] = df_engineered[col].dt.month
         df_engineered[f'{col}_Dia'] = df_engineered[col].dt.day
         df_engineered[f'{col}_DiaDaSemana'] = df_engineered[col].dt.dayofweek
 
-    # 3. Identificar tipos de colunas para o pipeline
     numeric_features = df_engineered.select_dtypes(include=['int64', 'float64']).columns
     categorical_features = df_engineered.select_dtypes(include=['object', 'category']).columns
 
-    # Remover colunas com apenas um valor único (não informativas)
     for col in list(numeric_features) + list(categorical_features):
         if df_engineered[col].nunique() <= 1:
             if col in numeric_features:
@@ -46,13 +55,11 @@ def engineer_dates_and_identify_types(df: pd.DataFrame):
 
     return df_engineered, list(numeric_features), list(categorical_features), original_datetime_features
 
-# Usa o cache para a análise pesada, só executa se os inputs mudarem
 @st.cache_data
 def run_analysis(df: pd.DataFrame, numeric_features: list, categorical_features: list):
     """
     Executa o pipeline de clustering e PCA.
     """
-    # Criar pipelines de pré-processamento
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
         ('scaler', StandardScaler())])
@@ -70,17 +77,14 @@ def run_analysis(df: pd.DataFrame, numeric_features: list, categorical_features:
     pipeline = Pipeline(steps=[('preprocessor', preprocessor),
                                ('cluster', KMeans(n_clusters=4, n_init='auto', random_state=42))])
     
-    # Executar o pipeline e obter os clusters
     pipeline.fit(df)
     cluster_labels = pipeline.named_steps['cluster'].labels_
 
-    # Redução de dimensionalidade com PCA para visualização
     processed_data = pipeline.named_steps['preprocessor'].transform(df)
     pca = PCA(n_components=2, random_state=42)
     pca_result = pca.fit_transform(processed_data)
 
     return cluster_labels, pca_result
-
 
 def render_tab_roi_receita():
     st.header("Análise Semi-Automática de Clusters")
@@ -90,18 +94,13 @@ def render_tab_roi_receita():
     
     if uploaded_file:
         try:
-            @st.cache_data
-            def load_data(file):
-                return pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
+            df_cleaned = intelligent_load_and_clean(uploaded_file)
+            st.success(f"Arquivo **{uploaded_file.name}** carregado e pré-processado!")
 
-            df_original = load_data(uploaded_file)
-            st.success(f"Arquivo **{uploaded_file.name}** carregado!")
-
-            if df_original.empty:
+            if df_cleaned.empty:
                 st.warning("A planilha está vazia."); return
 
-            # Prepara os dados e obtém o plano
-            df_engineered, numeric, categ, datetimes = engineer_dates_and_identify_types(df_original)
+            df_engineered, numeric, categ, datetimes = engineer_dates_and_identify_types(df_cleaned)
 
             with st.expander("Clique para ver o Plano de Análise", expanded=True):
                 st.markdown("##### O que será analisado:")
@@ -117,7 +116,8 @@ def render_tab_roi_receita():
                 with st.spinner('Executando análise... Isso pode levar um momento.'):
                     cluster_labels, pca_result = run_analysis(df_engineered, numeric, categ)
                     
-                    df_result = df_original.copy()
+                    # Usa o df_cleaned para mostrar os dados originais, antes da engenharia de datas
+                    df_result = df_cleaned.copy()
                     df_result['cluster'] = cluster_labels
                     df_result['pca-one'] = pca_result[:, 0]
                     df_result['pca-two'] = pca_result[:, 1]
@@ -131,5 +131,5 @@ def render_tab_roi_receita():
 
         except Exception as e:
             st.error(f"Ocorreu um erro: {e}")
-            st.error("Verifique se a planilha é válida. O erro de 'datetime' pode ocorrer se uma coluna de texto contiver valores que parecem datas mas não são consistentes.")
+            st.error("Verifique se a planilha é válida. O erro pode ocorrer se o formato do arquivo for incompatível ou se uma coluna de texto contiver valores que parecem datas mas não são consistentes.")
 
