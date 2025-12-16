@@ -7,131 +7,129 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 
+# Usa o cache para evitar reprocessar os dados e o plano a cada interação
 @st.cache_data
-def run_automated_analysis(df: pd.DataFrame):
+def engineer_dates_and_identify_types(df: pd.DataFrame):
     """
-    Executa um pipeline de análise automatizado no DataFrame fornecido.
+    Converte datas, cria features a partir delas e identifica os tipos de colunas para a análise.
     """
-    df_analysis = df.copy()
-
-    # 1. Tentar converter colunas de objeto para data/hora
-    for col in df_analysis.select_dtypes(include=['object']).columns:
+    df_engineered = df.copy()
+    
+    # 1. Tenta converter colunas de objeto para data/hora
+    original_datetime_features = []
+    for col in df_engineered.select_dtypes(include=['object']).columns:
         try:
-            df_analysis[col] = pd.to_datetime(df_analysis[col], errors='raise', format='mixed')
+            # Tenta converter para data/hora; se falhar, continua
+            df_engineered[col] = pd.to_datetime(df_engineered[col], errors='raise', format='mixed')
+            original_datetime_features.append(col)
         except (ValueError, TypeError):
-            continue # Não é uma coluna de data/hora
+            continue
 
-    # 2. Identificar tipos de colunas, agora separando datetimes
-    datetime_features = df_analysis.select_dtypes(include=['datetime64']).columns
-    numeric_features = df_analysis.select_dtypes(include=['int64', 'float64']).columns
-    categorical_features = df_analysis.select_dtypes(include=['object', 'category']).columns
+    # 2. Engenharia de Features para colunas de data/hora
+    for col in original_datetime_features:
+        df_engineered[f'{col}_Ano'] = df_engineered[col].dt.year
+        df_engineered[f'{col}_Mês'] = df_engineered[col].dt.month
+        df_engineered[f'{col}_Dia'] = df_engineered[col].dt.day
+        df_engineered[f'{col}_DiaDaSemana'] = df_engineered[col].dt.dayofweek
 
-    # Remover colunas com apenas um valor único (não informativas) das listas de features
-    for col in df_analysis.columns:
-        if df_analysis[col].nunique() <= 1:
+    # 3. Identificar tipos de colunas para o pipeline
+    numeric_features = df_engineered.select_dtypes(include=['int64', 'float64']).columns
+    categorical_features = df_engineered.select_dtypes(include=['object', 'category']).columns
+
+    # Remover colunas com apenas um valor único (não informativas)
+    for col in list(numeric_features) + list(categorical_features):
+        if df_engineered[col].nunique() <= 1:
             if col in numeric_features:
                 numeric_features = numeric_features.drop(col)
             if col in categorical_features:
                 categorical_features = categorical_features.drop(col)
 
-    # 3. Criar pipelines de pré-processamento
+    return df_engineered, list(numeric_features), list(categorical_features), original_datetime_features
+
+# Usa o cache para a análise pesada, só executa se os inputs mudarem
+@st.cache_data
+def run_analysis(df: pd.DataFrame, numeric_features: list, categorical_features: list):
+    """
+    Executa o pipeline de clustering e PCA.
+    """
+    # Criar pipelines de pré-processamento
     numeric_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
         ('scaler', StandardScaler())])
 
     categorical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))])
+        ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))])
 
-    # 4. Combinar pré-processadores
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numeric_transformer, numeric_features),
             ('cat', categorical_transformer, categorical_features)],
-        remainder='drop') # Ignora colunas não especificadas (como as de data/hora)
+        remainder='drop')
 
-    # 5. Criar o pipeline de análise completo com K-Means
     pipeline = Pipeline(steps=[('preprocessor', preprocessor),
-                               ('cluster', KMeans(n_clusters=4, n_init=10, random_state=42))])
+                               ('cluster', KMeans(n_clusters=4, n_init='auto', random_state=42))])
     
-    # 6. Executar o pipeline
-    pipeline.fit(df_analysis)
+    # Executar o pipeline e obter os clusters
+    pipeline.fit(df)
     cluster_labels = pipeline.named_steps['cluster'].labels_
 
-    # 7. Redução de dimensionalidade com PCA para visualização
-    processed_data = pipeline.named_steps['preprocessor'].transform(df_analysis)
+    # Redução de dimensionalidade com PCA para visualização
+    processed_data = pipeline.named_steps['preprocessor'].transform(df)
     pca = PCA(n_components=2, random_state=42)
-    pca_result = pca.fit_transform(processed_data.toarray() if hasattr(processed_data, "toarray") else processed_data)
+    pca_result = pca.fit_transform(processed_data)
 
-    # 8. Preparar o DataFrame de resultados
-    df_result = df.copy()
-    df_result['cluster'] = cluster_labels
-    df_result['pca-one'] = pca_result[:, 0]
-    df_result['pca-two'] = pca_result[:, 1]
-    
-    return df_result, numeric_features, categorical_features, datetime_features
+    return cluster_labels, pca_result
+
 
 def render_tab_roi_receita():
-    """
-    Renderiza a aba de Análise de ROI em Receita.
-    """
-    st.header("Análise Automática de Clusters")
-    
-    st.write("Faça o upload de uma planilha (CSV ou Excel) para segmentar seus dados automaticamente.")
+    st.header("Análise Semi-Automática de Clusters")
+    st.write("Faça o upload de uma planilha (CSV ou Excel) para segmentar seus dados.")
 
-    uploaded_file = st.file_uploader(
-        "Escolha sua planilha de dados", 
-        type=['csv', 'xlsx'],
-        label_visibility="collapsed"
-    )
+    uploaded_file = st.file_uploader("Escolha sua planilha", type=['csv', 'xlsx'], label_visibility="collapsed")
     
-    if uploaded_file is not None:
+    if uploaded_file:
         try:
             @st.cache_data
             def load_data(file):
-                if file.name.endswith('.csv'):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
-                return df
+                return pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
 
             df_original = load_data(uploaded_file)
-            st.success(f"Arquivo **{uploaded_file.name}** carregado com sucesso!")
+            st.success(f"Arquivo **{uploaded_file.name}** carregado!")
 
             if df_original.empty:
-                st.warning("A planilha está vazia.")
-                return
+                st.warning("A planilha está vazia."); return
 
-            with st.spinner('Executando análise automática...'):
-                df_result, numeric, categ, datetimes = run_automated_analysis(df_original)
+            # Prepara os dados e obtém o plano
+            df_engineered, numeric, categ, datetimes = engineer_dates_and_identify_types(df_original)
 
-            st.subheader("Visualização dos Clusters")
-            st.markdown(
-                "Os dados foram agrupados em clusters. O gráfico abaixo mostra essa separação. "
-                "Pontos da mesma cor pertencem ao mesmo grupo e compartilham características semelhantes."
-            )
+            with st.expander("Clique para ver o Plano de Análise", expanded=True):
+                st.markdown("##### O que será analisado:")
+                if not numeric and not categ:
+                    st.warning("Nenhuma coluna válida para análise foi encontrada.")
+                else:
+                    st.write("**Colunas Numéricas:**", f"`{numeric}`" if numeric else "Nenhuma")
+                    st.write("**Colunas de Texto:**", f"`{categ}`" if categ else "Nenhuma")
+                    if datetimes:
+                        st.info(f"**Colunas de Data (`{datetimes}`) foram transformadas em features numéricas (Ano, Mês, Dia, etc.) e incluídas na análise.**")
             
-            # Gráfico de dispersão
-            st.scatter_chart(
-                df_result,
-                x='pca-one',
-                y='pca-two',
-                color='cluster',
-                size=5,
-            )
-            
-            st.subheader("Dados com Clusters Atribuídos")
-            st.markdown("A tabela abaixo mostra os dados originais com uma nova coluna 'cluster' indicando a que grupo cada linha pertence.")
-            st.dataframe(df_result.drop(['pca-one', 'pca-two'], axis=1))
+            if st.button("Confirmar e Executar Análise", type="primary"):
+                with st.spinner('Executando análise... Isso pode levar um momento.'):
+                    cluster_labels, pca_result = run_analysis(df_engineered, numeric, categ)
+                    
+                    df_result = df_original.copy()
+                    df_result['cluster'] = cluster_labels
+                    df_result['pca-one'] = pca_result[:, 0]
+                    df_result['pca-two'] = pca_result[:, 1]
 
-            st.subheader("Resumo da Análise")
-            st.write(f"Foram analisadas **{len(numeric)}** colunas numéricas e **{len(categ)}** colunas de texto.")
-            if len(datetimes) > 0:
-                st.info(f"As seguintes colunas de data/hora foram detectadas e **excluídas** da análise de cluster: `{list(datetimes)}`")
-            st.write(f"As colunas numéricas foram: `{list(numeric)}`")
-            st.write(f"As colunas de texto foram: `{list(categ)}`")
-
+                    st.subheader("Visualização dos Clusters")
+                    st.markdown("Os dados foram agrupados. O gráfico abaixo mostra a separação.")
+                    st.scatter_chart(df_result, x='pca-one', y='pca-two', color='cluster')
+                    
+                    st.subheader("Dados com Clusters Atribuídos")
+                    st.dataframe(df_result.drop(['pca-one', 'pca-two'], axis=1))
 
         except Exception as e:
-            st.error(f"Ocorreu um erro durante a análise: {e}")
-            st.error("Por favor, verifique se a planilha tem dados válidos e tente novamente.")
+            st.error(f"Ocorreu um erro: {e}")
+            st.error("Verifique se a planilha é válida. O erro de 'datetime' pode ocorrer se uma coluna de texto contiver valores que parecem datas mas não são consistentes.")
+
