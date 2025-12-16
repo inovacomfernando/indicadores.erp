@@ -1,106 +1,120 @@
 import streamlit as st
 import pandas as pd
-import re
+import plotly.express as px
 
 @st.cache_data
 def intelligent_load_and_clean(file):
     """
-    Carrega dados de um arquivo, encontra o cabeçalho correto e realiza uma limpeza de tipos inteligente.
+    Carrega dados de um arquivo, encontra o cabeçalho correto e realiza uma limpeza básica.
     """
-    df = None
-    if file.name.lower().endswith(('.xlsx', '.xls')):
-        df_raw = pd.read_excel(file, header=None, sheet_name=0)
-        header_row_index = 0
-        for i, row in df_raw.head(10).iterrows():
-            if row.notna().sum() / df_raw.shape[1] > 0.5:
-                numeric_count = pd.to_numeric(row, errors='coerce').notna().sum()
-                if numeric_count / row.notna().sum() < 0.5:
+    try:
+        if file.name.lower().endswith(('.xlsx', '.xls')):
+            df_raw = pd.read_excel(file, header=None, sheet_name=0)
+            header_row_index = 0
+            # Tenta encontrar a linha de cabeçalho com base na contagem de não-nulos
+            for i, row in df_raw.head(10).iterrows():
+                if row.notna().sum() / len(row) > 0.5: # Se mais de 50% da linha for não-nula
                     header_row_index = i
                     break
-        df = pd.read_excel(file, header=header_row_index, sheet_name=0)
-    else:
-        df = pd.read_csv(file, encoding='utf-8', sep=None, engine='python')
+            df = pd.read_excel(file, header=header_row_index)
+        else:
+            # Para CSV, tenta detectar o separador
+            df = pd.read_csv(file, sep=None, engine='python')
 
-    df.dropna(axis='columns', how='all', inplace=True)
-    df.dropna(axis='rows', how='all', inplace=True)
-    df = df.loc[:, ~df.columns.str.contains('^Unnamed')] # Remove colunas 'Unnamed'
-    df.reset_index(drop=True, inplace=True)
-    
-    return df
+        df.dropna(axis='columns', how='all', inplace=True)
+        df.dropna(axis='rows', how='all', inplace=True)
+        df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+        df.reset_index(drop=True, inplace=True)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar a planilha: {e}")
+        return None
 
-@st.cache_data
-def run_cohort_analysis(df: pd.DataFrame):
-    """
-    Transforma o DataFrame em um formato de coorte e calcula o ROI mensal e acumulado.
-    """
-    if df.empty:
-        return pd.DataFrame()
-
-    # A primeira coluna é a safra (cohort)
-    cohort_col = df.columns[0]
-    df.rename(columns={cohort_col: 'safra'}, inplace=True)
-    
-    # Derreter o dataframe para o formato longo
-    df_long = df.melt(id_vars='safra', var_name='mes', value_name='valor_roi')
-    
-    # Limpeza e conversão de tipos
-    # Extrai o número do mês (ex: de 'Mês 1' para 1)
-    df_long['mes_num'] = df_long['mes'].astype(str).str.extract(r'(\d+)').fillna(0).astype(int)
-    
-    # Limpa a coluna de valor (remove 'R$', espaços, e converte para float)
-    if df_long['valor_roi'].dtype == 'object':
-        df_long['valor_roi'] = df_long['valor_roi'].astype(str).str.replace(r'[R$\s]', '', regex=True)
-        df_long['valor_roi'] = df_long['valor_roi'].str.replace(',', '.').astype(float)
-    
-    df_long.dropna(subset=['valor_roi'], inplace=True)
-    df_long.sort_values(by=['safra', 'mes_num'], inplace=True)
-    
-    # Calcula o ROI acumulado para cada safra
-    df_long['roi_acumulado'] = df_long.groupby('safra')['valor_roi'].cumsum()
-    
-    return df_long
+def clean_numeric_column(series: pd.Series) -> pd.Series:
+    """Limpa uma coluna para garantir que ela seja numérica."""
+    if series.dtype == 'object':
+        series = series.astype(str).str.replace(r'[R$\s]', '', regex=True).str.replace(',', '.', regex=False)
+    return pd.to_numeric(series, errors='coerce')
 
 def render_tab_roi_receita():
-    st.header("Análise de Performance de Safra (Cohort)")
-    st.write("Acompanhe o ROI (Retorno sobre Investimento) mensal e acumulado de cada safra.")
+    st.header("Análise de Receita e ROI")
+    st.write("Faça o upload de uma planilha para analisar a performance de receita ou ROI ao longo do tempo.")
 
-    uploaded_file = st.file_uploader("Faça o upload da sua planilha de ROI", type=['csv', 'xlsx'])
-    
+    uploaded_file = st.file_uploader("Selecione sua planilha", type=['csv', 'xlsx', 'xls'])
+
     if uploaded_file:
+        df = intelligent_load_and_clean(uploaded_file)
+
+        if df is None or df.empty:
+            st.warning("Não foi possível carregar dados da planilha ou a planilha está vazia.")
+            return
+
+        st.info("Planilha carregada com sucesso! Agora, configure a sua análise.")
+        
+        cols = df.columns.tolist()
+        
+        # --- PAINEL DE CONFIGURAÇÃO ---
+        with st.expander("Configurar Colunas para Análise", expanded=True):
+            col_periodo = st.selectbox("Selecione a coluna de Período/Data:", cols)
+            col_valor = st.selectbox("Selecione a coluna de Valor (Receita/ROI):", cols, index=len(cols)-1 if len(cols)>1 else 0)
+
+        if not col_periodo or not col_valor:
+            st.warning("Por favor, selecione as colunas de período e valor para continuar.")
+            return
+            
         try:
-            df_cleaned = intelligent_load_and_clean(uploaded_file)
+            # --- PROCESSAMENTO DOS DADOS ---
+            analysis_df = df[[col_periodo, col_valor]].copy()
+            analysis_df.dropna(subset=[col_periodo, col_valor], inplace=True)
+
+            # Converter coluna de período para datetime
+            analysis_df['periodo'] = pd.to_datetime(analysis_df[col_periodo], errors='coerce')
             
-            if df_cleaned.empty:
-                st.warning("Não foi possível encontrar dados válidos na planilha."); return
-
-            df_cohort = run_cohort_analysis(df_cleaned)
-
-            if df_cohort.empty:
-                st.warning("A análise de coorte não pôde ser gerada. Verifique a estrutura da sua planilha."); return
-
-            st.success("Análise de coorte processada com sucesso!")
-
-            # Filtro de Safras
-            all_cohorts = df_cohort['safra'].unique()
-            selected_cohorts = st.multiselect("Selecione as safras para visualizar:", options=all_cohorts, default=all_cohorts)
+            # Limpar e converter coluna de valor
+            analysis_df['valor'] = clean_numeric_column(analysis_df[col_valor])
             
-            if not selected_cohorts:
-                st.info("Selecione pelo menos uma safra para visualizar os gráficos.")
+            # Verificar se houve problemas na conversão
+            if analysis_df['periodo'].isnull().any():
+                st.warning("Algumas datas não puderam ser reconhecidas e foram ignoradas. Verifique o formato da coluna de período.")
+            if analysis_df['valor'].isnull().any():
+                st.warning("Alguns valores não puderam ser convertidos para número e foram ignorados. Verifique a coluna de valor.")
+
+            analysis_df.dropna(subset=['periodo', 'valor'], inplace=True)
+            
+            if analysis_df.empty:
+                st.error("Nenhum dado válido para análise após a limpeza. Verifique suas seleções e a qualidade dos dados na planilha.")
                 return
 
-            df_filtered = df_cohort[df_cohort['safra'].isin(selected_cohorts)]
+            # Ordenar por período e calcular acumulado
+            analysis_df.sort_values('periodo', inplace=True)
+            analysis_df['acumulado'] = analysis_df['valor'].cumsum()
+            analysis_df['periodo_str'] = analysis_df['periodo'].dt.strftime('%Y-%m-%d') # Coluna para o gráfico
+
+            # --- EXIBIÇÃO DOS RESULTADOS ---
+            st.success("Análise concluída!")
+
+            # KPIs
+            total_acumulado = analysis_df['acumulado'].iloc[-1]
+            media_mensal = analysis_df['valor'].mean()
+            
+            col1, col2 = st.columns(2)
+            col1.metric("Receita Total Acumulada", f"R$ {total_acumulado:,.2f}")
+            col2.metric("Média de Receita por Período", f"R$ {media_mensal:,.2f}")
 
             # Gráficos
-            st.subheader("ROI Acumulado por Safra")
-            st.line_chart(df_filtered, x='mes_num', y='roi_acumulado', color='safra')
+            st.subheader("Performance de Receita Mensal")
+            fig_mensal = px.bar(analysis_df, x='periodo_str', y='valor', title="Receita por Período", labels={'periodo_str': 'Período', 'valor': 'Valor'})
+            st.plotly_chart(fig_mensal, use_container_width=True)
 
-            st.subheader("ROI Mensal por Safra")
-            st.line_chart(df_filtered, x='mes_num', y='valor_roi', color='safra')
-            
-            st.subheader("Dados Detalhados da Análise")
-            st.dataframe(df_filtered)
+            st.subheader("Crescimento Acumulado da Receita")
+            fig_acumulado = px.line(analysis_df, x='periodo_str', y='acumulado', title="Receita Acumulada ao Longo do Tempo", markers=True, labels={'periodo_str': 'Período', 'acumulado': 'Valor Acumulado'})
+            st.plotly_chart(fig_acumulado, use_container_width=True)
+
+            # Tabela de dados
+            with st.expander("Ver dados processados"):
+                st.dataframe(analysis_df[['periodo', 'valor', 'acumulado']])
 
         except Exception as e:
-            st.error(f"Ocorreu um erro inesperado durante a análise: {e}")
-            st.error("Por favor, verifique se a estrutura da sua planilha corresponde a um formato de coorte (ex: primeira coluna com a safra, colunas seguintes com os valores mensais).")
+            st.error(f"Ocorreu um erro durante a análise: {e}")
+            st.error("Verifique se as colunas selecionadas são adequadas para esta análise (uma para datas/períodos e outra para valores numéricos).")
 
