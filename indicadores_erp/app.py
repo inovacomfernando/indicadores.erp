@@ -81,7 +81,7 @@ with tab6:
     render_tab_benchmarks(df_filtered, BENCHMARKS)
 
 with tab7:
-    render_tab_contador()
+    render_tab_contador(df_filtered)
 
 with tab8:
     render_tab_recomendacoes(df_filtered, BENCHMARKS)
