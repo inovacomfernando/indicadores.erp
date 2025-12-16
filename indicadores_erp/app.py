@@ -21,6 +21,7 @@ from tabs.tab_recomendacoes import render_tab_recomendacoes
 from tabs.tab_forecast import render_tab_forecast
 from tabs.tab_contador import render_tab_contador
 from tabs.tab_resultados import render_tab_resultados
+from tabs.tab_roi_receita import render_tab_roi_receita
 
 # Configuração da página
 st.set_page_config(**PAGE_CONFIG)
@@ -58,7 +59,8 @@ tabs = st.tabs([
     "📋 Recomendações", 
     "🔮 Forecast",
     "🤝 Parceria Contador",
-    "📄 Resultados"
+    "📄 Resultados",
+    "💸 ROI em Receita"
 ])
 
 with tabs[0]:
@@ -84,6 +86,9 @@ with tabs[6]:
 
 with tabs[7]:
     render_tab_resultados(df_filtered, BENCHMARKS)
+
+with tabs[8]:
+    render_tab_roi_receita()
 
 # Footer
 st.markdown("---")
