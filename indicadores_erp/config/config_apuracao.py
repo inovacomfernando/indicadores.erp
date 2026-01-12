@@ -12,6 +12,7 @@ Exemplo:
 - Dados de SET/25 → Apurados no primeiro dia útil de OUT/25
 - Dados de OUT/25 → Apurados no primeiro dia útil de NOV/25
 - Dados de NOV/25 → Apurados no primeiro dia útil de DEZ/25
+- Dados de DEZ/25 → Apurados no primeiro dia útil de JAN/26
 
 COMO ATUALIZAR:
 ===============
@@ -45,9 +46,10 @@ MESES_APURADOS = [
     'Ago/25',
     'Set/25',
     'Out/25',
-    'Nov/25', # ← Último mês oficialmente apurado
+    'Nov/25',
+    'Dez/25', # ← Último mês oficialmente apurado
     # Adicione novos meses apurados abaixo desta linha
-    # Exemplo: 'Out/25' (após apuração em Nov/25)
+    # Exemplo: 'Jan/26' (após apuração em Fev/26)
 ]
 
 # ============================================================================
@@ -55,13 +57,13 @@ MESES_APURADOS = [
 # ============================================================================
 
 # Data da última atualização (para referência)
-ULTIMA_ATUALIZACAO = "Nov/25"  # Último mês apurado
+ULTIMA_ATUALIZACAO = "Dez/25"  # Último mês apurado
 
 # Próximo mês esperado para apuração
-PROXIMO_MES_APURACAO = "Dez/25"  # Será apurado no primeiro dia útil de Jan/25
+PROXIMO_MES_APURACAO = "Jan/26"  # Será apurado no primeiro dia útil de Fev/26
 
 # Data estimada de apuração do próximo mês
-DATA_ESTIMADA_APURACAO = "Primeiro dia útil de Jan/25"
+DATA_ESTIMADA_APURACAO = "Primeiro dia útil de Fev/26"
 
 
 def get_meses_apurados():

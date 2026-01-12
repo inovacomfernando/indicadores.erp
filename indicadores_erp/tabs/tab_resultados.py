@@ -254,6 +254,5 @@ def render_tab_resultados(df_filtered, benchmarks):
     with st.expander("Considerações sobre a Análise de Tendência"):
         st.warning("""
         **Períodos a serem desconsiderados para análise estatística de tendência:**
-        - **Dez/25:** Este mês contém dados zerados e foi automaticamente removido dos cálculos de média e comparações.
         - **Out/25 e Nov/25:** Apresentam quedas abruptas em ROI e CAC. É crucial investigar os eventos ocorridos nestes meses (ex: problemas na campanha, sazonalidade, mudança de estratégia) antes de incluí-los em projeções de longo prazo.
         """, icon="⚠️")
